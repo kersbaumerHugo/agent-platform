@@ -12,6 +12,4 @@ class DSHRuntime(RuntimeContract):
         return "dsh"
 
     async def execute(self, request: RuntimeRequest) -> RuntimeResult:
-        raise NotImplementedError(
-            "Implement DSH adapter after the core smoke test is green."
-        )
+        raise NotImplementedError("Implement DSH adapter after the core smoke test is green.")
