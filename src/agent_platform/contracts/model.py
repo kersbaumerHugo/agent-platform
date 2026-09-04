@@ -1,5 +1,7 @@
 from typing import Protocol
 
+from agent_platform.domain.model import ModelRequest, ModelResult
+
 
 class ModelContract(Protocol):
     @property
@@ -7,3 +9,5 @@ class ModelContract(Protocol):
 
     @property
     def model(self) -> str: ...
+
+    async def generate(self, request: ModelRequest) -> ModelResult: ...
