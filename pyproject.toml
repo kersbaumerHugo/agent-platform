@@ -23,6 +23,9 @@ dev = [
   "mypy==2.3.1",
   "build==1.6.0",
 ]
+dsh = [
+  "deepseek-harness-sdk==0.1.2rc1",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -41,3 +44,7 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+
+[[tool.mypy.overrides]]
+module = "deepseek_harness"
+ignore_missing_imports = true
