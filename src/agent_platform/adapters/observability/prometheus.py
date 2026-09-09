@@ -1,47 +1,98 @@
-import logging
-from uuid import UUID
-
 from prometheus_client import Counter, Histogram
 
-logger = logging.getLogger("agent_platform")
+from agent_platform.domain.observability import (
+    ObservationComponent,
+    ObservationEvent,
+    ObservationStatus,
+)
 
 RUNS = Counter(
     "agent_platform_runs_total",
-    "Agent platform runs.",
+    "Completed agent platform runs.",
     ["runtime", "status"],
 )
 
-DURATION = Histogram(
+RUN_DURATION = Histogram(
     "agent_platform_run_duration_seconds",
     "Agent platform run duration.",
     ["runtime"],
 )
 
+MODEL_REQUESTS = Counter(
+    "agent_platform_model_requests_total",
+    "Completed model requests.",
+    ["provider", "model", "status"],
+)
+
+MODEL_DURATION = Histogram(
+    "agent_platform_model_request_duration_seconds",
+    "Model request duration.",
+    ["provider", "model"],
+)
+
+MODEL_TOKENS = Counter(
+    "agent_platform_model_tokens_total",
+    "Model token usage.",
+    ["provider", "model", "token_type"],
+)
+
 
 class PrometheusObserver:
-    def run_started(self, run_id: UUID, runtime: str) -> None:
-        logger.info(
-            "run_started run_id=%s runtime=%s",
-            run_id,
-            runtime,
-        )
+    def record(self, event: ObservationEvent) -> None:
+        if event.component == ObservationComponent.RUN:
+            self._record_run(event)
 
-    def run_succeeded(self, run_id: UUID, runtime: str, duration_seconds: float) -> None:
-        RUNS.labels(runtime=runtime, status="succeeded").inc()
-        DURATION.labels(runtime=runtime).observe(duration_seconds)
-        logger.info(
-            "run_succeeded run_id=%s runtime=%s duration_seconds=%f",
-            run_id,
-            runtime,
-            duration_seconds,
-        )
+        elif event.component == ObservationComponent.MODEL_GATEWAY:
+            self._record_model(event)
 
-    def run_failed(self, run_id: UUID, runtime: str, duration_seconds: float) -> None:
-        RUNS.labels(runtime=runtime, status="failed").inc()
-        DURATION.labels(runtime=runtime).observe(duration_seconds)
-        logger.exception(
-            "run_failed run_id=%s runtime=%s duration_seconds=%f",
-            run_id,
-            runtime,
-            duration_seconds,
-        )
+    @staticmethod
+    def _record_run(event: ObservationEvent) -> None:
+        if event.status == ObservationStatus.STARTED:
+            return
+
+        runtime = event.runtime or "unknown"
+
+        RUNS.labels(
+            runtime=runtime,
+            status=event.status.value,
+        ).inc()
+
+        if event.duration_seconds is not None:
+            RUN_DURATION.labels(runtime=runtime).observe(event.duration_seconds)
+
+    @staticmethod
+    def _record_model(event: ObservationEvent) -> None:
+        if event.status == ObservationStatus.STARTED:
+            return
+
+        provider = event.provider or "unknown"
+        model = event.model or "unknown"
+
+        MODEL_REQUESTS.labels(
+            provider=provider,
+            model=model,
+            status=event.status.value,
+        ).inc()
+
+        if event.duration_seconds is not None:
+            MODEL_DURATION.labels(
+                provider=provider,
+                model=model,
+            ).observe(event.duration_seconds)
+
+        if event.status != ObservationStatus.SUCCEEDED:
+            return
+
+        token_values = {
+            "prompt": event.prompt_tokens,
+            "completion": event.completion_tokens,
+            "total": event.total_tokens,
+        }
+
+        for token_type, value in token_values.items():
+            if value is not None:
+                MODEL_TOKENS.labels(
+                    provider=provider,
+                    model=model,
+                    token_type=token_type,
+                ).inc(value)

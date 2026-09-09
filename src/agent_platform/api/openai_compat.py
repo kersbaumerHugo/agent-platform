@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from agent_platform.adapters.models.openrouter import OpenRouterModelAdapter
+from agent_platform.adapters.observability.default import default_observer
 from agent_platform.application.model_gateway import ModelGateway
 from agent_platform.domain.model import (
     MessageRole,
@@ -69,7 +70,8 @@ def get_model_gateway() -> ModelGateway:
             api_key=api_key,
             model=model,
             timeout_seconds=90.0,
-        )
+        ),
+        observer=default_observer,
     )
 
 
