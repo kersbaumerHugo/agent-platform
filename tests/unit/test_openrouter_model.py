@@ -3,8 +3,8 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from agent_platform.adapters.models.openrouter import OpenRouterModelAdapter
 
+from agent_platform.adapters.models.openrouter import OpenRouterModelAdapter
 from agent_platform.domain.model import (
     MessageRole,
     ModelMessage,
