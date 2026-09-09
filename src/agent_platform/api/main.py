@@ -5,6 +5,7 @@ from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from agent_platform.adapters.observability.default import default_observer
+from agent_platform.adapters.observability.tracing import configure_tracing
 from agent_platform.adapters.runtimes.fake import FakeRuntime
 from agent_platform.api.openai_compat import router as openai_compat_router
 from agent_platform.application.run_agent import RunAgent
@@ -14,6 +15,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
+configure_tracing()
 
 app = FastAPI(title="Agent Platform", version="0.0.1")
 app.include_router(openai_compat_router)
