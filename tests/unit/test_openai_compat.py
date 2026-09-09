@@ -11,6 +11,7 @@ from agent_platform.domain.model import (
     ModelResult,
     TokenUsage,
 )
+from agent_platform.domain.observability import ObservationEvent
 
 
 class FakeModel:
@@ -40,6 +41,14 @@ class FakeModel:
         )
 
 
+class NullObserver:
+    def record(
+        self,
+        event: ObservationEvent,
+    ) -> None:
+        pass
+
+
 def test_openai_compat_routes_through_model_contract(
     monkeypatch,
 ) -> None:
@@ -50,7 +59,10 @@ def test_openai_compat_routes_through_model_contract(
         "internal-test-token",
     )
 
-    app.dependency_overrides[get_model_gateway] = lambda: ModelGateway(fake_model)
+    app.dependency_overrides[get_model_gateway] = lambda: ModelGateway(
+        fake_model,
+        NullObserver(),
+    )
 
     session_id = "a68eafb6-52fc-4d8b-9123-705a375a43c3"
 
