@@ -26,16 +26,12 @@ async def main() -> None:
                 ModelMessage(
                     role=MessageRole.SYSTEM,
                     content=(
-                        "You are participating in an infrastructure smoke test. "
-                        "Reply concisely."
+                        "You are participating in an infrastructure smoke test. Reply concisely."
                     ),
                 ),
                 ModelMessage(
                     role=MessageRole.USER,
-                    content=(
-                        "Reply exactly with: "
-                        "Agent Platform model gateway is working."
-                    ),
+                    content=("Reply exactly with: Agent Platform model gateway is working."),
                 ),
             ],
             temperature=0,

@@ -36,14 +36,26 @@ MODEL_TOKENS = Counter(
     ["provider", "model", "token_type"],
 )
 
+TOOL_REQUESTS = Counter(
+    "agent_platform_tool_requests_total",
+    "Completed tool requests.",
+    ["tool", "status"],
+)
+
+TOOL_DURATION = Histogram(
+    "agent_platform_tool_request_duration_seconds",
+    "Tool request duration.",
+    ["tool"],
+)
+
 
 class PrometheusObserver:
     def record(self, event: ObservationEvent) -> None:
         if event.component == ObservationComponent.RUN:
             self._record_run(event)
 
-        elif event.component == ObservationComponent.MODEL_GATEWAY:
-            self._record_model(event)
+        elif event.component == ObservationComponent.TOOL:
+            self._record_tool(event)
 
     @staticmethod
     def _record_run(event: ObservationEvent) -> None:
@@ -96,3 +108,20 @@ class PrometheusObserver:
                     model=model,
                     token_type=token_type,
                 ).inc(value)
+
+    @staticmethod
+    def _record_tool(event: ObservationEvent) -> None:
+        if event.status == ObservationStatus.STARTED:
+            return
+
+        tool_name = event.tool_name or "unknown"
+
+        TOOL_REQUESTS.labels(
+            tool=tool_name,
+            status=event.status.value,
+        ).inc()
+
+        if event.duration_seconds is not None:
+            TOOL_DURATION.labels(
+                tool=tool_name,
+            ).observe(event.duration_seconds)

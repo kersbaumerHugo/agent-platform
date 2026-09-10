@@ -1,0 +1,11 @@
+- insert:
+    - id: mcp-agent-platform
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: platform
+        transport: streamable-http
+        url: http://127.0.0.1:8001/mcp
+        headers:
+          X-Agent-Platform-Run-Id: !!js process.env.AGENT_PLATFORM_RUN_ID
+        toolCallTimeoutMs: 30000
+        failOnStartupError: true

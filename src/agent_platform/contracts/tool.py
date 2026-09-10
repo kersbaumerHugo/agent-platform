@@ -1,11 +1,17 @@
-from typing import Any, Protocol
+from typing import Protocol
+
+from agent_platform.domain.tool import (
+    ToolDefinition,
+    ToolRequest,
+    ToolResult,
+)
 
 
 class ToolContract(Protocol):
     @property
-    def name(self) -> str: ...
+    def definition(self) -> ToolDefinition: ...
 
-    @property
-    def description(self) -> str: ...
-
-    async def invoke(self, arguments: dict[str, Any]) -> dict[str, Any]: ...
+    async def invoke(
+        self,
+        request: ToolRequest,
+    ) -> ToolResult: ...

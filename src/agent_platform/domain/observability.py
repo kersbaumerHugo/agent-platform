@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class ObservationComponent(StrEnum):
     RUN = "run"
     MODEL_GATEWAY = "model_gateway"
+    TOOL = "tool"
 
 
 class ObservationStatus(StrEnum):
@@ -30,13 +31,24 @@ class ObservationEvent(BaseModel):
     model: str | None = None
     resolved_model: str | None = None
 
+    tool_name: str | None = None
+
     duration_seconds: float | None = Field(
         default=None,
         ge=0,
     )
 
-    prompt_tokens: int | None = Field(default=None, ge=0)
-    completion_tokens: int | None = Field(default=None, ge=0)
-    total_tokens: int | None = Field(default=None, ge=0)
+    prompt_tokens: int | None = Field(
+        default=None,
+        ge=0,
+    )
+    completion_tokens: int | None = Field(
+        default=None,
+        ge=0,
+    )
+    total_tokens: int | None = Field(
+        default=None,
+        ge=0,
+    )
 
     error_type: str | None = None
