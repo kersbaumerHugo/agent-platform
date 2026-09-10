@@ -1,3 +1,8 @@
+import os
+
+from mcp.server.transport_security import (
+    TransportSecuritySettings,
+)
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
     generate_latest,
@@ -20,6 +25,24 @@ from agent_platform.application.tool_registry import (
     ToolRegistry,
 )
 
+
+def build_transport_security() -> TransportSecuritySettings:
+    allowed_hosts = [
+        "127.0.0.1:*",
+        "localhost:*",
+        "[::1]:*",
+    ]
+
+    remote_host = os.getenv("AGENT_PLATFORM_MCP_ALLOWED_HOST")
+
+    if remote_host:
+        allowed_hosts.append(remote_host)
+
+    return TransportSecuritySettings(
+        allowed_hosts=allowed_hosts,
+    )
+
+
 configure_tracing()
 
 registry = ToolRegistry(
@@ -29,7 +52,10 @@ registry = ToolRegistry(
 
 server = build_mcp_tool_server(registry)
 
-app = server.streamable_http_app()
+
+app = app = server.streamable_http_app(
+    transport_security=build_transport_security(),
+)
 
 
 async def metrics(
