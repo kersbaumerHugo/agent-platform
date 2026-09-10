@@ -18,7 +18,20 @@ from agent_platform.domain.model import (
     ModelMessage,
     ModelRequest,
     ModelResult,
+    ModelToolCall,
+    ModelToolDefinition,
 )
+
+
+class OpenAICompatFunctionCall(BaseModel):
+    name: str
+    arguments: str
+
+
+class OpenAICompatToolCall(BaseModel):
+    id: str
+    type: str = "function"
+    function: OpenAICompatFunctionCall
 
 
 class OpenAICompatMessage(BaseModel):
@@ -26,6 +39,22 @@ class OpenAICompatMessage(BaseModel):
 
     role: str
     content: str | None = None
+
+    tool_call_id: str | None = None
+    tool_calls: list[OpenAICompatToolCall] = Field(default_factory=list)
+
+    reasoning_content: str | None = None
+
+
+class OpenAICompatFunctionDefinition(BaseModel):
+    name: str
+    description: str
+    parameters: dict[str, object]
+
+
+class OpenAICompatTool(BaseModel):
+    type: str
+    function: OpenAICompatFunctionDefinition
 
 
 class OpenAICompatRequest(BaseModel):
@@ -38,9 +67,7 @@ class OpenAICompatRequest(BaseModel):
     temperature: float | None = None
     max_tokens: int | None = None
 
-    # Accepted during M2b so DSH can send its normal envelope.
-    # Tool semantics enter the platform contract in M3.
-    tools: list[dict[str, object]] | None = None
+    tools: list[OpenAICompatTool] | None = None
     tool_choice: object | None = None
     stop: str | list[str] | None = None
 
@@ -111,6 +138,32 @@ def resolve_run_id(session_id: str | None) -> UUID:
         return uuid4()
 
 
+def map_tools(
+    tools: list[OpenAICompatTool] | None,
+) -> list[ModelToolDefinition]:
+    if not tools:
+        return []
+
+    mapped: list[ModelToolDefinition] = []
+
+    for tool in tools:
+        if tool.type != "function":
+            raise HTTPException(
+                status_code=501,
+                detail=("Only function tools are supported."),
+            )
+
+        mapped.append(
+            ModelToolDefinition(
+                name=tool.function.name,
+                description=tool.function.description,
+                input_schema=tool.function.parameters,
+            )
+        )
+
+    return mapped
+
+
 def map_messages(
     messages: list[OpenAICompatMessage],
 ) -> list[ModelMessage]:
@@ -122,32 +175,115 @@ def map_messages(
         except ValueError as exc:
             raise HTTPException(
                 status_code=501,
-                detail=f"Unsupported message role: {message.role}",
+                detail=(f"Unsupported message role: {message.role}"),
             ) from exc
 
-        if message.content is None or not message.content.strip():
+        if role in {
+            MessageRole.SYSTEM,
+            MessageRole.USER,
+        }:
+            if message.content is None or not message.content.strip():
+                continue
+
+            mapped.append(
+                ModelMessage(
+                    role=role,
+                    content=message.content,
+                )
+            )
             continue
 
-        mapped.append(
-            ModelMessage(
-                role=role,
-                content=message.content,
+        if role == MessageRole.ASSISTANT:
+            tool_calls: list[ModelToolCall] = []
+
+            for tool_call in message.tool_calls:
+                if tool_call.type != "function":
+                    raise HTTPException(
+                        status_code=501,
+                        detail=("Only function tool calls are supported."),
+                    )
+
+                tool_calls.append(
+                    ModelToolCall(
+                        id=tool_call.id,
+                        name=(tool_call.function.name),
+                        arguments=(tool_call.function.arguments),
+                    )
+                )
+
+            if (message.content is None or not message.content.strip()) and not tool_calls:
+                continue
+
+            mapped.append(
+                ModelMessage(
+                    role=role,
+                    content=message.content,
+                    tool_calls=tool_calls,
+                    reasoning_content=(message.reasoning_content),
+                )
             )
-        )
+            continue
+
+        if role == MessageRole.TOOL:
+            if message.tool_call_id is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=("Tool messages require tool_call_id."),
+                )
+
+            if message.content is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=("Tool messages require content."),
+                )
+
+            mapped.append(
+                ModelMessage(
+                    role=role,
+                    content=message.content,
+                    tool_call_id=(message.tool_call_id),
+                )
+            )
 
     if not mapped:
         raise HTTPException(
             status_code=400,
-            detail="No model-compatible messages were provided.",
+            detail=("No model-compatible messages were provided."),
         )
 
     return mapped
 
 
-def stream_result(result: ModelResult) -> Iterator[str]:
+def stream_result(
+    result: ModelResult,
+) -> Iterator[str]:
     request_id = result.provider_request_id or f"chatcmpl-{uuid4().hex}"
 
     created = int(time())
+
+    delta: dict[str, object] = {
+        "role": "assistant",
+    }
+
+    if result.output:
+        delta["content"] = result.output
+
+    if result.reasoning_content is not None:
+        delta["reasoning_content"] = result.reasoning_content
+
+    if result.tool_calls:
+        delta["tool_calls"] = [
+            {
+                "index": index,
+                "id": tool_call.id,
+                "type": "function",
+                "function": {
+                    "name": tool_call.name,
+                    "arguments": tool_call.arguments,
+                },
+            }
+            for index, tool_call in enumerate(result.tool_calls)
+        ]
 
     content_chunk = {
         "id": request_id,
@@ -157,16 +293,13 @@ def stream_result(result: ModelResult) -> Iterator[str]:
         "choices": [
             {
                 "index": 0,
-                "delta": {
-                    "role": "assistant",
-                    "content": result.output,
-                },
+                "delta": delta,
                 "finish_reason": None,
             }
         ],
     }
 
-    yield f"data: {json.dumps(content_chunk)}\n\n"
+    yield (f"data: {json.dumps(content_chunk)}\n\n")
 
     finish_chunk: dict[str, object] = {
         "id": request_id,
@@ -177,19 +310,19 @@ def stream_result(result: ModelResult) -> Iterator[str]:
             {
                 "index": 0,
                 "delta": {},
-                "finish_reason": result.finish_reason or "stop",
+                "finish_reason": (result.finish_reason or "stop"),
             }
         ],
     }
 
     if result.usage is not None:
         finish_chunk["usage"] = {
-            "prompt_tokens": result.usage.prompt_tokens,
-            "completion_tokens": result.usage.completion_tokens,
-            "total_tokens": result.usage.total_tokens,
+            "prompt_tokens": (result.usage.prompt_tokens),
+            "completion_tokens": (result.usage.completion_tokens),
+            "total_tokens": (result.usage.total_tokens),
         }
 
-    yield f"data: {json.dumps(finish_chunk)}\n\n"
+    yield (f"data: {json.dumps(finish_chunk)}\n\n")
     yield "data: [DONE]\n\n"
 
 
@@ -212,10 +345,10 @@ async def chat_completions(
     model_request = ModelRequest(
         run_id=resolve_run_id(x_deepseek_harness_session_id),
         messages=map_messages(request.messages),
+        tools=map_tools(request.tools),
         temperature=request.temperature,
         max_tokens=request.max_tokens,
     )
-
     result = await gateway.generate(model_request)
 
     return StreamingResponse(

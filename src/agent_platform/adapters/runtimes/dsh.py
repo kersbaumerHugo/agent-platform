@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Protocol, cast
 
 from agent_platform.contracts.runtime import RuntimeContract
-from agent_platform.domain.models import RuntimeRequest, RuntimeResult
+from agent_platform.domain.models import (
+    RuntimeRequest,
+    RuntimeResult,
+)
 
 
 class _DSHRunResult(Protocol):
@@ -35,6 +38,8 @@ class DSHRuntime(RuntimeContract):
         model: str,
         profile: str = "sdk",
         request_timeout_seconds: float | None = 120.0,
+        patches: tuple[Path, ...] = (),
+        env: Mapping[str, str] | None = None,
         client_factory: Callable[[], _DSHClient] | None = None,
     ) -> None:
         if not provider:
@@ -49,17 +54,28 @@ class DSHRuntime(RuntimeContract):
         self._model = model
         self._profile = profile
         self._request_timeout_seconds = request_timeout_seconds
+        self._patches = tuple(patch.resolve() for patch in patches)
+        self._env = dict(env or {})
         self._client_factory = client_factory
 
     @property
     def name(self) -> str:
         return "dsh"
 
-    async def execute(self, request: RuntimeRequest) -> RuntimeResult:
-        return await asyncio.to_thread(self._execute_sync, request)
+    async def execute(
+        self,
+        request: RuntimeRequest,
+    ) -> RuntimeResult:
+        return await asyncio.to_thread(
+            self._execute_sync,
+            request,
+        )
 
-    def _execute_sync(self, request: RuntimeRequest) -> RuntimeResult:
-        client = self._build_client()
+    def _execute_sync(
+        self,
+        request: RuntimeRequest,
+    ) -> RuntimeResult:
+        client = self._build_client(request)
 
         try:
             result = client.run(
@@ -76,7 +92,10 @@ class DSHRuntime(RuntimeContract):
             output=result.final_response,
         )
 
-    def _build_client(self) -> _DSHClient:
+    def _build_client(
+        self,
+        request: RuntimeRequest,
+    ) -> _DSHClient:
         if self._client_factory is not None:
             return self._client_factory()
 
@@ -87,13 +106,18 @@ class DSHRuntime(RuntimeContract):
                 'DSH runtime is not installed. Install the optional dependency with ".[dsh]".'
             ) from exc
 
+        runtime_env = dict(self._env)
+        runtime_env["AGENT_PLATFORM_RUN_ID"] = str(request.run_id)
+
         client = DeepSeekHarness(
             dsh_home=str(self._dsh_home),
             cwd=str(self._cwd),
             provider=self._provider,
             model=self._model,
             profile=self._profile,
-            request_timeout_seconds=self._request_timeout_seconds,
+            patches=tuple(str(patch) for patch in self._patches),
+            env=runtime_env,
+            request_timeout_seconds=(self._request_timeout_seconds),
         )
 
         return cast(_DSHClient, client)
