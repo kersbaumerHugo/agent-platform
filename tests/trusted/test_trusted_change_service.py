@@ -230,3 +230,78 @@ async def test_server_rejects_non_utf8_request(
         assert sink.published == []
     finally:
         await server.close()
+
+
+@pytest.mark.asyncio
+async def test_handler_serializes_publication() -> None:
+    @dataclass
+    class ConcurrentSink:
+        active: int = 0
+        max_active: int = 0
+        calls: int = 0
+
+        async def publish(
+            self,
+            change_set: ChangeSet,
+        ) -> PublicationResult:
+            self.active += 1
+            self.max_active = max(
+                self.max_active,
+                self.active,
+            )
+
+            await asyncio.sleep(0.02)
+
+            self.calls += 1
+            self.active -= 1
+
+            return PublicationResult(reference=f"fake://publication/{self.calls}")
+
+    sink = ConcurrentSink()
+
+    handler = TrustedChangeHandler(
+        TrustedPublisher(
+            policy=ChangePolicy(),
+            sink=sink,
+        )
+    )
+
+    first = serialize_change_set(
+        ChangeSet(
+            base_revision="abc123",
+            branch_name="agent/first",
+            commit_message="feat: first",
+            changes=(
+                FileChange(
+                    path="src/first.py",
+                    operation=FileChangeOperation.UPSERT,
+                    content="FIRST = True\n",
+                ),
+            ),
+        )
+    )
+
+    second = serialize_change_set(
+        ChangeSet(
+            base_revision="abc123",
+            branch_name="agent/second",
+            commit_message="feat: second",
+            changes=(
+                FileChange(
+                    path="src/second.py",
+                    operation=FileChangeOperation.UPSERT,
+                    content="SECOND = True\n",
+                ),
+            ),
+        )
+    )
+
+    responses = await asyncio.gather(
+        handler.handle(first),
+        handler.handle(second),
+    )
+
+    assert all(response.status == "accepted" for response in responses)
+
+    assert sink.calls == 2
+    assert sink.max_active == 1

@@ -1,0 +1,51 @@
+[Unit]
+Description=Agent Platform Trusted Change Publisher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+User=agent-publisher
+Group=agent-change
+
+Environment=HOME=/var/lib/agent-platform-publisher
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=/etc/agent-platform/publisher.env
+
+WorkingDirectory=/var/lib/agent-platform-publisher/workspace
+
+ExecStart=/var/lib/agent-platform-publisher/venv/bin/python \
+  -m agent_platform.trust.runtime \
+  --socket /run/agent-platform/trusted-change.sock \
+  --repo /var/lib/agent-platform-publisher/workspace \
+  --github-repository kersbaumerHugo/agent-platform \
+  --remote-name origin \
+  --base-branch main \
+  --gh-binary /usr/bin/gh
+
+RuntimeDirectory=agent-platform
+RuntimeDirectoryMode=0770
+UMask=0007
+
+Restart=on-failure
+RestartSec=2
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+RestrictSUIDSGID=yes
+
+ReadWritePaths=/var/lib/agent-platform-publisher
+ReadWritePaths=/run/agent-platform
+
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

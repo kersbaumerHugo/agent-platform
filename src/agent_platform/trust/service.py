@@ -56,6 +56,7 @@ class TrustedChangeHandler:
         publisher: TrustedPublisher,
     ) -> None:
         self._publisher = publisher
+        self._publication_lock = asyncio.Lock()
 
     async def handle(
         self,
@@ -70,12 +71,13 @@ class TrustedChangeHandler:
             )
 
         try:
-            result = await self._publisher.publish(change_set)
+            async with self._publication_lock:
+                result = await self._publisher.publish(change_set)
         except ChangeRejectedError as exc:
             return ChangeServiceResponse(
                 status="rejected",
                 reason_code=exc.decision.reason_code,
-                blocked_paths=(exc.decision.blocked_paths),
+                blocked_paths=exc.decision.blocked_paths,
             )
         except Exception:
             return ChangeServiceResponse(

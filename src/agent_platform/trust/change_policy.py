@@ -20,6 +20,7 @@ DEFAULT_PROTECTED_PATTERNS = (
     "src/agent_platform/trust/**",
     "src/agent_platform/adapters/git/**",
     "src/agent_platform/adapters/github/**",
+    "deploy/trusted/**",
     "tests/trusted/**",
 )
 
