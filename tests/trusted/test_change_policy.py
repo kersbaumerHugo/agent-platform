@@ -18,6 +18,7 @@ def policy() -> ChangePolicy:
         "src/agent_platform/trust/change_policy.py",
         "src/agent_platform/adapters/git/local.py",
         "src/agent_platform/adapters/github/proposal.py",
+        "deploy/trusted/agent-platform-publisher.service",
         "tests/trusted/test_change_policy.py",
     ],
 )

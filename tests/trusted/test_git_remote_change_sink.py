@@ -294,3 +294,161 @@ async def test_missing_remote_fails_before_local_mutation(
 
     assert git(workspace, "branch", "--show-current") == "main"
     assert git(workspace, "rev-parse", "HEAD") == base_revision
+
+
+@pytest.mark.asyncio
+async def test_rejects_change_based_on_unpublished_local_revision(
+    tmp_path: Path,
+) -> None:
+    import subprocess
+
+    from agent_platform.adapters.git.remote import (
+        GitRemoteChangeSink,
+        GitRemoteError,
+    )
+    from agent_platform.trust.publisher import (
+        ChangeSet,
+        FileChange,
+        FileChangeOperation,
+    )
+
+    def run_git(
+        cwd: Path,
+        *args: str,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            check=check,
+            capture_output=True,
+            text=True,
+        )
+
+    remote = tmp_path / "remote.git"
+
+    subprocess.run(
+        ["git", "init", "--bare", str(remote)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    run_git(repo, "init", "-b", "main")
+
+    (repo / "README.md").write_text(
+        "# baseline\n",
+        encoding="utf-8",
+    )
+
+    run_git(repo, "add", "README.md")
+    run_git(
+        repo,
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.invalid",
+        "commit",
+        "-m",
+        "initial",
+    )
+
+    run_git(
+        repo,
+        "remote",
+        "add",
+        "origin",
+        str(remote),
+    )
+
+    run_git(
+        repo,
+        "push",
+        "-u",
+        "origin",
+        "main",
+    )
+
+    remote_main = run_git(
+        repo,
+        "rev-parse",
+        "HEAD",
+    ).stdout.strip()
+
+    run_git(
+        repo,
+        "switch",
+        "-c",
+        "trusted/unpublished",
+    )
+
+    (repo / "trusted.txt").write_text(
+        "local-only trusted change\n",
+        encoding="utf-8",
+    )
+
+    run_git(repo, "add", "trusted.txt")
+    run_git(
+        repo,
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.invalid",
+        "commit",
+        "-m",
+        "trusted local commit",
+    )
+
+    local_revision = run_git(
+        repo,
+        "rev-parse",
+        "HEAD",
+    ).stdout.strip()
+
+    assert local_revision != remote_main
+
+    sink = GitRemoteChangeSink(
+        repo,
+        remote_name="origin",
+        base_branch="main",
+    )
+
+    change_set = ChangeSet(
+        base_revision=local_revision,
+        branch_name="agent/attempt-inherited-change",
+        commit_message="docs: innocent looking change",
+        changes=(
+            FileChange(
+                path="docs/example.md",
+                operation=FileChangeOperation.UPSERT,
+                content="hello\n",
+            ),
+        ),
+    )
+
+    with pytest.raises(
+        GitRemoteError,
+        match="does not match remote base branch",
+    ):
+        await sink.publish(change_set)
+
+    remote_branch = run_git(
+        repo,
+        "ls-remote",
+        "--heads",
+        "origin",
+        "refs/heads/agent/attempt-inherited-change",
+    )
+
+    assert remote_branch.stdout.strip() == ""
+
+    current_revision = run_git(
+        repo,
+        "rev-parse",
+        "HEAD",
+    ).stdout.strip()
+
+    assert current_revision == local_revision
