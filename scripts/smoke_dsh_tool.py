@@ -1,4 +1,5 @@
 import asyncio
+import os
 from pathlib import Path
 from uuid import uuid4
 
@@ -12,10 +13,13 @@ async def main() -> None:
     run_id = uuid4()
 
     runtime = DSHRuntime(
-        dsh_home=Path(".runtime/dsh-tools"),
+        dsh_home=Path(".runtime/dsh"),
         cwd=Path("."),
         provider="deepseek-official",
-        model="openrouter/free",
+        model=os.environ.get(
+            "AGENT_PLATFORM_SMOKE_MODEL",
+            "dots-studio/dots-3-note-preview:free",
+        ),
         patches=(Path("config/dsh/platform-mcp.cordis.yml"),),
         request_timeout_seconds=180.0,
     )
