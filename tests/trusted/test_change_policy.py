@@ -17,6 +17,7 @@ def policy() -> ChangePolicy:
         "tests/conftest.py",
         "src/agent_platform/trust/change_policy.py",
         "src/agent_platform/adapters/git/local.py",
+        "src/agent_platform/adapters/github/proposal.py",
         "tests/trusted/test_change_policy.py",
     ],
 )
