@@ -16,6 +16,7 @@ def policy() -> ChangePolicy:
         "pytest.ini",
         "tests/conftest.py",
         "src/agent_platform/trust/change_policy.py",
+        "src/agent_platform/adapters/git/local.py",
         "tests/trusted/test_change_policy.py",
     ],
 )

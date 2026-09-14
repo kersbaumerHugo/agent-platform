@@ -18,6 +18,7 @@ DEFAULT_PROTECTED_PATTERNS = (
     "conftest.py",
     "**/conftest.py",
     "src/agent_platform/trust/**",
+    "src/agent_platform/adapters/git/**",
     "tests/trusted/**",
 )
 
