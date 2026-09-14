@@ -54,6 +54,9 @@ class PrometheusObserver:
         if event.component == ObservationComponent.RUN:
             self._record_run(event)
 
+        elif event.component == ObservationComponent.MODEL_GATEWAY:
+            self._record_model(event)
+
         elif event.component == ObservationComponent.TOOL:
             self._record_tool(event)
 
