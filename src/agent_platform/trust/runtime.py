@@ -48,6 +48,7 @@ def build_github_server(
     git_sink = GitRemoteChangeSink(
         repo_root,
         remote_name=remote_name,
+        base_branch=base_branch,
     )
 
     pr_client = GitHubCliPullRequestClient(

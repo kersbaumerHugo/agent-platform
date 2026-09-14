@@ -23,11 +23,13 @@ class GitRemoteChangeSink:
         repo_root: Path,
         *,
         remote_name: str = "origin",
+        base_branch: str = "main",
         author_name: str = "Agent Platform",
         author_email: str = "agent-platform@localhost",
     ) -> None:
         self._repo_root = repo_root.resolve()
         self._remote_name = remote_name
+        self._base_branch = base_branch
         self._local_sink = LocalGitChangeSink(
             repo_root,
             author_name=author_name,
@@ -50,6 +52,7 @@ class GitRemoteChangeSink:
         self._verify_remote()
         self._verify_branch_name(change_set.branch_name)
         self._verify_remote_branch_absent(change_set.branch_name)
+        self._verify_base_revision_is_remote_base(change_set.base_revision)
 
         local_result = asyncio.run(self._local_sink.publish(change_set))
 
@@ -108,6 +111,30 @@ class GitRemoteChangeSink:
         if result.returncode != 2:
             raise GitRemoteError(self._format_git_error(result))
 
+    def _verify_base_revision_is_remote_base(
+        self,
+        base_revision: str,
+    ) -> None:
+        result = self._run_git(
+            "ls-remote",
+            "--heads",
+            self._remote_name,
+            f"refs/heads/{self._base_branch}",
+        )
+
+        if result.returncode != 0:
+            raise GitRemoteError(self._format_git_error(result))
+
+        output = result.stdout.strip()
+
+        if not output:
+            raise GitRemoteError(f"Remote base branch does not exist: {self._base_branch}")
+
+        remote_revision = output.split()[0]
+
+        if remote_revision != base_revision:
+            raise GitRemoteError("ChangeSet base_revision does not match remote base branch.")
+
     def _git(
         self,
         *args: str,
@@ -136,4 +163,5 @@ class GitRemoteChangeSink:
         result: subprocess.CompletedProcess[str],
     ) -> str:
         detail = result.stderr.strip() or result.stdout.strip()
+
         return f"Git command failed: {detail}"
