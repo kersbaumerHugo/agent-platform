@@ -52,6 +52,83 @@ class _OpenRouterResponse(BaseModel):
     usage: _OpenRouterUsage | None = None
 
 
+class OpenRouterProviderError(RuntimeError):
+    def __init__(
+        self,
+        *,
+        message: str,
+        code: str | int | None = None,
+        request_id: str | None = None,
+    ) -> None:
+        self.code = code
+        self.request_id = request_id
+
+        detail = "OpenRouter provider error"
+
+        if code is not None:
+            detail += f" ({code})"
+
+        super().__init__(f"{detail}: {message}")
+
+
+def _extract_provider_error(
+    payload: object,
+) -> OpenRouterProviderError | None:
+    if not isinstance(payload, dict):
+        return None
+
+    raw_error = payload.get("error")
+
+    if raw_error is None:
+        return None
+
+    raw_request_id = payload.get("id")
+    request_id = raw_request_id if isinstance(raw_request_id, str) else None
+
+    if isinstance(raw_error, dict):
+        raw_code = raw_error.get("code")
+
+        code: str | int | None
+
+        if isinstance(raw_code, (str, int)):
+            code = raw_code
+        elif raw_code is None:
+            code = None
+        else:
+            code = str(raw_code)
+
+        raw_message = raw_error.get("message")
+
+        message = (
+            raw_message.strip() if isinstance(raw_message, str) and raw_message.strip() else ""
+        )
+
+        if not message:
+            metadata = raw_error.get("metadata")
+
+            if isinstance(metadata, dict):
+                raw_detail = metadata.get("raw")
+
+                if isinstance(raw_detail, str) and raw_detail.strip():
+                    message = raw_detail.strip()
+
+        if not message:
+            message = "provider request failed"
+    else:
+        code = None
+        message = (
+            raw_error.strip()
+            if isinstance(raw_error, str) and raw_error.strip()
+            else "provider request failed"
+        )
+
+    return OpenRouterProviderError(
+        message=message,
+        code=code,
+        request_id=request_id,
+    )
+
+
 def _serialize_tool(
     tool: ModelToolDefinition,
 ) -> dict[str, object]:
@@ -183,14 +260,25 @@ class OpenRouterModelAdapter(ModelContract):
                         headers=headers,
                     )
 
-                    response.raise_for_status()
-
                     span.set_attribute(
                         "http.response.status_code",
                         response.status_code,
                     )
 
-                    parsed = _OpenRouterResponse.model_validate(response.json())
+                    try:
+                        response_payload = response.json()
+                    except ValueError as exc:
+                        response.raise_for_status()
+                        raise RuntimeError("OpenRouter returned invalid JSON.") from exc
+
+                    provider_error = _extract_provider_error(response_payload)
+
+                    if provider_error is not None:
+                        raise provider_error
+
+                    response.raise_for_status()
+
+                    parsed = _OpenRouterResponse.model_validate(response_payload)
 
                     if not parsed.choices:
                         raise RuntimeError("OpenRouter returned no choices.")

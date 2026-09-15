@@ -4,7 +4,10 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from agent_platform.adapters.models.openrouter import OpenRouterModelAdapter
+from agent_platform.adapters.models.openrouter import (
+    OpenRouterModelAdapter,
+    OpenRouterProviderError,
+)
 from agent_platform.domain.model import (
     MessageRole,
     ModelMessage,
@@ -175,3 +178,55 @@ async def test_openrouter_adapter_maps_tool_call() -> None:
     assert call.id == "call-123"
     assert call.name == "diagnostic_echo"
     assert call.arguments == ('{"message":"hello"}')
+
+
+@pytest.mark.asyncio
+async def test_openrouter_adapter_rejects_provider_error_payload() -> None:
+    async def handler(
+        request: httpx.Request,
+    ) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "generation-provider-error",
+                "error": {
+                    "code": 503,
+                    "message": "Provider unavailable",
+                    "metadata": {
+                        "raw": "provider_unavailable",
+                    },
+                },
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    async with httpx.AsyncClient(transport=transport) as client:
+        adapter = OpenRouterModelAdapter(
+            api_key="test-key",
+            model="openrouter/free",
+            client=client,
+        )
+
+        with pytest.raises(
+            OpenRouterProviderError,
+            match="OpenRouter provider error",
+        ) as exc_info:
+            await adapter.generate(
+                ModelRequest(
+                    run_id=uuid4(),
+                    messages=[
+                        ModelMessage(
+                            role=MessageRole.USER,
+                            content="hello",
+                        )
+                    ],
+                )
+            )
+
+    error = exc_info.value
+
+    assert error.code == 503
+    assert error.request_id == "generation-provider-error"
+
+    assert "Provider unavailable" in str(error)
