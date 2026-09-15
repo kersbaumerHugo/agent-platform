@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from mcp.server.transport_security import (
     TransportSecuritySettings,
@@ -12,6 +13,10 @@ from starlette.responses import Response
 from agent_platform.adapters.mcp.server import (
     build_mcp_tool_server,
 )
+from agent_platform.adapters.memory.sqlite import (
+    SQLiteFTSRetrieval,
+    SQLiteMemoryStore,
+)
 from agent_platform.adapters.observability.default import (
     default_observer,
 )
@@ -21,9 +26,17 @@ from agent_platform.adapters.observability.tracing import (
 from agent_platform.adapters.tools.diagnostic import (
     DiagnosticEchoTool,
 )
+from agent_platform.adapters.tools.memory import (
+    MemoryRecallTool,
+    MemoryRememberTool,
+)
+from agent_platform.application.retrieval_acceptance import (
+    LexicalRetrievalAcceptanceGate,
+)
 from agent_platform.application.tool_registry import (
     ToolRegistry,
 )
+from agent_platform.contracts.tool import ToolContract
 
 
 def build_transport_security() -> TransportSecuritySettings:
@@ -43,17 +56,45 @@ def build_transport_security() -> TransportSecuritySettings:
     )
 
 
+def build_tool_registry(
+    memory_database_path: str | Path | None = None,
+) -> ToolRegistry:
+    tools: list[ToolContract] = [
+        DiagnosticEchoTool(),
+    ]
+
+    if memory_database_path is not None:
+        store = SQLiteMemoryStore(
+            memory_database_path,
+        )
+        retrieval = SQLiteFTSRetrieval(
+            memory_database_path,
+        )
+        acceptance = LexicalRetrievalAcceptanceGate()
+
+        tools.extend(
+            [
+                MemoryRememberTool(store),
+                MemoryRecallTool(
+                    retrieval,
+                    acceptance,
+                ),
+            ]
+        )
+
+    return ToolRegistry(
+        tools,
+        default_observer,
+    )
+
+
 configure_tracing()
 
-registry = ToolRegistry(
-    [DiagnosticEchoTool()],
-    default_observer,
-)
+registry = build_tool_registry(os.getenv("AGENT_PLATFORM_MEMORY_DB"))
 
 server = build_mcp_tool_server(registry)
 
-
-app = app = server.streamable_http_app(
+app = server.streamable_http_app(
     transport_security=build_transport_security(),
 )
 
