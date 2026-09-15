@@ -10,7 +10,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from agent_platform.adapters.models.openrouter import OpenRouterModelAdapter
+from agent_platform.adapters.models.openrouter import (
+    OpenRouterError,
+    OpenRouterModelAdapter,
+)
 from agent_platform.adapters.observability.default import default_observer
 from agent_platform.application.model_gateway import ModelGateway
 from agent_platform.domain.model import (
@@ -349,7 +352,16 @@ async def chat_completions(
         temperature=request.temperature,
         max_tokens=request.max_tokens,
     )
-    result = await gateway.generate(model_request)
+    try:
+        result = await gateway.generate(model_request)
+    except OpenRouterError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "type": "upstream_provider_error",
+                "message": str(exc),
+            },
+        ) from exc
 
     return StreamingResponse(
         stream_result(result),

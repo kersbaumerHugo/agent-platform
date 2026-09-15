@@ -231,3 +231,68 @@ def test_openai_compat_streams_tool_calls() -> None:
 
     assert finish["choices"][0]["finish_reason"] == "tool_calls"
     assert finish["usage"]["total_tokens"] == 14
+
+
+def test_openai_compat_maps_provider_failure_to_502(
+    monkeypatch,
+) -> None:
+    from agent_platform.adapters.models.openrouter import (
+        OpenRouterProviderError,
+    )
+
+    class FailingModel:
+        provider = "openrouter"
+        model = "openrouter/free"
+
+        async def generate(
+            self,
+            request: ModelRequest,
+        ) -> ModelResult:
+            raise OpenRouterProviderError(
+                message="Service temporarily overloaded",
+                code=502,
+                request_id="provider-failure-123",
+            )
+
+    monkeypatch.setenv(
+        "MODEL_GATEWAY_API_KEY",
+        "internal-test-token",
+    )
+
+    app.dependency_overrides[get_model_gateway] = lambda: ModelGateway(
+        FailingModel(),
+        NullObserver(),
+    )
+
+    try:
+        client = TestClient(
+            app,
+            raise_server_exceptions=False,
+        )
+
+        response = client.post(
+            "/internal/v1/chat/completions",
+            headers={
+                "Authorization": ("Bearer internal-test-token"),
+            },
+            json={
+                "model": "logical-agent-model",
+                "stream": True,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "hello",
+                    }
+                ],
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 502
+
+    body = response.json()
+
+    assert body["detail"]["type"] == ("upstream_provider_error")
+
+    assert "temporarily overloaded" in (body["detail"]["message"])
