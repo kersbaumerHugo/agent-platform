@@ -321,13 +321,17 @@ Required GitHub CI gates execute                 PASS
 Human promotion remains required                 PASS
 ```
 
-## Known limitation
+## M6.3 follow-up
 
-The current publication workspace remains on the newly created feature branch after a successful publication.
+The previously documented persistent-workspace limitation was removed by M6.3.
 
-This does not invalidate the trust-boundary result, but repeated autonomous publication should not rely on manual cleanup.
+Automated tests prove that disposable workspaces are removed after:
 
-The next hardening step is a disposable or deterministically reset publication workspace per request.
+- successful publication;
+- invalid base revision;
+- existing remote branch failure.
+
+A production end-to-end validation is performed only after the accepted revision is promoted to `main`.
 
 ## Decision
 

@@ -20,7 +20,7 @@ Expected layout:
 /var/lib/agent-platform-publisher/
 ├── repo/       # trusted runtime source
 ├── venv/       # trusted runtime environment
-└── workspace/  # clean publication workspace based on remote main
+└── workspaces/ # parent for ephemeral publication-* workspaces
 ```
 
 `/var/lib/agent-platform-publisher` is owned by `agent-publisher` and mode `0700`.
