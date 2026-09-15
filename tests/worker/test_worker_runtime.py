@@ -5,6 +5,9 @@ import pytest
 
 from agent_platform.trust.publisher import ChangeSet
 from agent_platform.worker import runtime as worker_runtime
+from agent_platform.worker.model_gateway_preflight import (
+    ModelGatewayPreflightError,
+)
 from agent_platform.worker.publication import (
     TrustedPublicationResponse,
 )
@@ -93,6 +96,16 @@ async def test_runtime_reconciles_and_uses_supervised_worker(
 ) -> None:
     captured: dict[str, object] = {}
 
+    class FakePreflight:
+        def __init__(
+            self,
+            **kwargs: object,
+        ) -> None:
+            captured["preflight_kwargs"] = kwargs
+
+        async def check(self) -> None:
+            captured["preflight_checked"] = True
+
     class FakeSubprocessWorker:
         def __init__(
             self,
@@ -104,6 +117,8 @@ async def test_runtime_reconciles_and_uses_supervised_worker(
             self,
             request: WorkerExecutionRequest,
         ) -> WorkerExecutionResult:
+            assert captured.get("preflight_checked") is True
+
             captured["workspace"] = request.workspace
 
             (request.workspace / "generated.txt").write_text(
@@ -131,6 +146,12 @@ async def test_runtime_reconciles_and_uses_supervised_worker(
                 status="accepted",
                 reference="test://proposal",
             )
+
+    monkeypatch.setattr(
+        worker_runtime,
+        "ModelGatewayPreflight",
+        FakePreflight,
+    )
 
     monkeypatch.setattr(
         worker_runtime,
@@ -162,7 +183,11 @@ async def test_runtime_reconciles_and_uses_supervised_worker(
         dsh_home=tmp_path / "dsh",
         provider="deepseek-official",
         model="test-model",
-        env={"PATH": "/usr/bin:/bin"},
+        env={
+            "PATH": "/usr/bin:/bin",
+            "DEEPSEEK_BASE_URL": ("http://gateway/internal/v1"),
+            "DEEPSEEK_API_KEY": ("internal-key"),
+        },
         hard_timeout_seconds=30.0,
     )
 
@@ -193,5 +218,78 @@ async def test_runtime_reconciles_and_uses_supervised_worker(
     assert isinstance(executor_kwargs, dict)
 
     assert executor_kwargs["hard_timeout_seconds"] == 30.0
+
+    assert list(parent.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_runtime_aborts_before_worker_when_preflight_fails(
+    tmp_path: Path,
+    remote_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailingPreflight:
+        def __init__(
+            self,
+            **kwargs: object,
+        ) -> None:
+            pass
+
+        async def check(self) -> None:
+            raise ModelGatewayPreflightError("provider unavailable")
+
+    class WorkerMustNotExecute:
+        def __init__(
+            self,
+            **kwargs: object,
+        ) -> None:
+            pass
+
+        async def execute(
+            self,
+            request: WorkerExecutionRequest,
+        ) -> WorkerExecutionResult:
+            raise AssertionError("Worker executed despite failed preflight.")
+
+    monkeypatch.setattr(
+        worker_runtime,
+        "ModelGatewayPreflight",
+        FailingPreflight,
+    )
+
+    monkeypatch.setattr(
+        worker_runtime,
+        "DshSubprocessWorkerExecutor",
+        WorkerMustNotExecute,
+    )
+
+    parent = tmp_path / "workspaces"
+    parent.mkdir()
+
+    runtime = worker_runtime.build_supervised_worker_runtime(
+        repository_url=str(remote_repo),
+        workspace_parent=parent,
+        publisher_socket_path=(tmp_path / "trusted.sock"),
+        dsh_home=tmp_path / "dsh",
+        provider="deepseek-official",
+        model="test-model",
+        env={
+            "PATH": "/usr/bin:/bin",
+            "DEEPSEEK_BASE_URL": ("http://gateway/internal/v1"),
+            "DEEPSEEK_API_KEY": ("internal-key"),
+        },
+    )
+
+    with pytest.raises(
+        ModelGatewayPreflightError,
+        match="provider unavailable",
+    ):
+        await runtime.run(
+            WorkerDevelopmentTask(
+                goal="Must never execute.",
+                branch_name=("agent/preflight-failure"),
+                commit_message=("test: preflight failure"),
+            )
+        )
 
     assert list(parent.iterdir()) == []
