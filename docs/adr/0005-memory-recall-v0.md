@@ -1,15 +1,15 @@
 # ADR-0005: Memory and Recall V0 with lexical-first retrieval
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-15
 
 ## Trigger
 
 The Agent Platform can execute agentic workloads through replaceable runtime and model-provider contracts, including a validated local inference backend.
 
-The next functional gap is persistent memory across executions.
+The next functional gap was persistent memory across executions.
 
-Agents currently have no platform-owned mechanism to:
+Before M7, agents had no platform-owned mechanism to:
 
 - explicitly persist durable information;
 - recover relevant information in a later execution;
@@ -32,13 +32,13 @@ Retrieval owns search and ranking.
 
 The Retrieval Acceptance Gate decides whether retrieved evidence is sufficient to use.
 
-Context injection is a later integration concern and must not be coupled to the persistence backend.
+Context injection is a later integration concern and is not coupled to the persistence backend.
 
 ## Decision
 
-M7 V0 will implement platform-owned contracts for memory and retrieval.
+M7 V0 uses platform-owned contracts for memory and retrieval.
 
-The baseline backend will use SQLite with FTS5 and BM25.
+The accepted baseline backend is SQLite with FTS5 and BM25.
 
 No embeddings, vector database, semantic reranker or LLM-based retrieval decision is required for V0.
 
@@ -73,9 +73,9 @@ SQLite                 SQLite FTS5 / BM25
 
 ## Contracts
 
-M7 should begin with platform-owned contracts rather than a storage-specific API.
+The platform owns the memory and retrieval contracts.
 
-Initial domain concepts should include equivalents of:
+Implemented domain concepts include:
 
 ```text
 MemoryRecord
@@ -87,13 +87,13 @@ RetrievalContract
 RetrievalAcceptanceDecision
 ```
 
-Backend-specific concepts must not leak into the contracts.
+Backend-specific concepts do not leak into the contracts.
 
 ## Memory write path
 
 Memory creation is explicit in V0.
 
-The platform will expose a capability equivalent to:
+The platform exposes:
 
 ```text
 memory_remember
@@ -101,13 +101,13 @@ memory_remember
 
 The runtime or agent may invoke this capability when durable information should be stored.
 
-V0 will not automatically extract memories from every conversation or model response.
+V0 does not automatically extract memories from every conversation or model response.
 
 Automatic memory extraction requires separate evidence and policy.
 
 ## Recall path
 
-The platform will expose a capability equivalent to:
+The platform exposes:
 
 ```text
 memory_recall
@@ -123,7 +123,7 @@ query
   -> results or abstention
 ```
 
-Retrieval must be able to return no usable context.
+Retrieval is allowed to return no usable context.
 
 Top-k retrieval is not equivalent to sufficient evidence.
 
@@ -131,18 +131,16 @@ Top-k retrieval is not equivalent to sufficient evidence.
 
 The acceptance gate belongs to the Retrieval Plane.
 
-It must remain independent from the storage backend.
+It remains independent from the storage backend.
 
-V0 may use deterministic signals such as:
+The accepted V0 gate uses deterministic lexical signals, including:
 
-- number of matching results;
-- lexical score;
+- presence or absence of hits;
 - query-term coverage;
-- relative score distribution;
 - scope constraints;
-- source metadata.
+- top-hit score metadata.
 
-The decision must produce at least:
+The decision produces:
 
 ```text
 decision
@@ -150,60 +148,50 @@ reason_code
 metadata
 ```
 
-Initial decisions:
+Initial decisions are:
 
 ```text
 ACCEPT
 ABSTAIN
 ```
 
-Retry and fallback strategies may be added later if justified.
+Retry and fallback strategies remain deferred.
 
 ## Scope isolation
 
-Every persistent memory must belong to an explicit scope or namespace.
+Every persistent memory belongs to an explicit scope or namespace.
 
-Retrieval must never search outside the requested scope unless an explicit cross-scope policy exists.
+Retrieval does not search outside the requested scope.
 
 Scope isolation is a correctness and security requirement, not a ranking hint.
 
 ## Persistence
 
-The SQLite database is runtime state and must not live inside immutable release directories.
+The SQLite database is runtime state and does not live inside immutable release directories.
 
-The expected deployment location is conceptually:
+The accepted deployment location is:
 
 ```text
-/var/lib/agent-platform/memory/
+/var/lib/agent-platform/memory/memory.sqlite3
 ```
 
-The exact filesystem layout remains a deployment concern.
-
-Application releases must remain replaceable without deleting durable memory.
+Application releases remain replaceable without deleting durable memory.
 
 ## Observability
 
-Memory and retrieval operations must expose structured telemetry.
+Memory and retrieval operations are exposed through the existing tool lifecycle observability boundary.
 
-V0 should measure:
+Raw memory content is not emitted into default acceptance telemetry.
 
-- memory writes;
-- recall requests;
-- recall latency;
-- hit count;
-- accepted recalls;
-- abstentions;
-- retrieval errors.
+`run_id` remains the execution correlation identifier.
 
-Raw memory content must not be emitted into logs, metrics or traces by default.
+Further dedicated retrieval metrics may be added when they earn their place through an operational or evaluation requirement.
 
-`run_id` should remain the execution correlation identifier.
+## Integration strategy
 
-## Initial integration strategy
+M7 V0 reuses the existing platform capability boundary.
 
-M7 V0 should reuse the existing platform capability boundary.
-
-The first write/read flow should be:
+The write/read flow is:
 
 ```text
 Agent
@@ -213,13 +201,32 @@ Agent
  -> platform-owned memory/retrieval contracts
 ```
 
-This avoids modifying ModelContract or RuntimeContract solely to add persistence.
+This avoids modifying `ModelContract` or `RuntimeContract` solely to add persistence.
 
 Automatic context injection remains deferred.
 
+## Validation evidence
+
+The complete validation is recorded in:
+
+```text
+docs/evidence/m7-memory-recall-results.md
+```
+
+Observed evidence includes:
+
+- explicit memory write through MCP and ToolRegistry;
+- recall from a later execution with a different `run_id`;
+- successful recall after MCP SIGKILL and systemd recovery;
+- explicit ABSTAIN for unrelated queries;
+- no cross-scope retrieval;
+- successful recall after complete `agent01` reboot;
+- successful recall after application roll-forward from `7f8f1a9` to `f746f16`;
+- persistent SQLite state outside immutable release directories.
+
 ## V0 success criteria
 
-M7 V0 is complete when the platform can prove all of the following:
+M7 V0 is accepted because the platform proved all of the following:
 
 1. A memory written during one execution persists.
 2. A later execution can recall that memory.
@@ -227,12 +234,28 @@ M7 V0 is complete when the platform can prove all of the following:
 4. Retrieval ranking is deterministic for a fixed corpus and query.
 5. Unrelated queries can produce ABSTAIN.
 6. Scope isolation prevents cross-scope retrieval.
-7. Memory content is not exposed through default telemetry.
+7. Memory content is not exposed through default acceptance telemetry.
 8. The capability works through the existing platform-owned tool boundary.
+
+## Deployment finding
+
+During validation, the SQLite database was initially observed with mode `0644`.
+
+It was corrected to `0640`.
+
+A minimal deployment hardening follow-up should make restrictive creation permissions automatic, for example through:
+
+```text
+UMask=0027
+```
+
+on the MCP service or equivalent explicit persistent-state provisioning.
+
+This finding does not invalidate the architecture decision.
 
 ## Deferred complexity
 
-The following are explicitly outside V0:
+The following remain outside V0:
 
 ```text
 embeddings
@@ -252,7 +275,7 @@ These capabilities require evidence that the lexical baseline is insufficient.
 
 ## Evolution path
 
-The intended evidence-gated progression is:
+The evidence-gated progression remains:
 
 ```text
 V0
@@ -282,7 +305,7 @@ The lexical baseline should be measured before any semantic retrieval candidate 
 
 Useful signals include:
 
-- recall@k on a small labeled memory corpus;
+- recall@k on a labeled memory corpus;
 - precision@k;
 - accepted-vs-abstained correctness;
 - task success rate with recall enabled;
