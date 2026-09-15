@@ -13,13 +13,14 @@ Environment=HOME=/var/lib/agent-platform-publisher
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EnvironmentFile=/etc/agent-platform/publisher.env
 
-WorkingDirectory=/var/lib/agent-platform-publisher/workspace
+WorkingDirectory=/var/lib/agent-platform-publisher
 
 ExecStart=/var/lib/agent-platform-publisher/venv/bin/python \
   -m agent_platform.trust.runtime \
   --socket /run/agent-platform/trusted-change.sock \
-  --repo /var/lib/agent-platform-publisher/workspace \
   --github-repository kersbaumerHugo/agent-platform \
+  --repository-url https://github.com/kersbaumerHugo/agent-platform.git \
+  --workspace-parent /var/lib/agent-platform-publisher/workspaces \
   --remote-name origin \
   --base-branch main \
   --gh-binary /usr/bin/gh

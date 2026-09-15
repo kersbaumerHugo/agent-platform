@@ -5,8 +5,10 @@ import asyncio
 import signal
 from pathlib import Path
 
+from agent_platform.adapters.git.disposable import (
+    DisposableGitRemoteChangeSink,
+)
 from agent_platform.adapters.git.local import LocalGitChangeSink
-from agent_platform.adapters.git.remote import GitRemoteChangeSink
 from agent_platform.adapters.github.cli import GitHubCliPullRequestClient
 from agent_platform.adapters.github.proposal import PullRequestChangeSink
 from agent_platform.trust.change_policy import ChangePolicy
@@ -39,14 +41,16 @@ def build_server(
 def build_github_server(
     *,
     socket_path: Path,
-    repo_root: Path,
+    repository_url: str,
+    workspace_parent: Path,
     repository: str,
     remote_name: str = "origin",
     base_branch: str = "main",
     gh_binary: str = "gh",
 ) -> UnixSocketChangeServer:
-    git_sink = GitRemoteChangeSink(
-        repo_root,
+    git_sink = DisposableGitRemoteChangeSink(
+        repository_url=repository_url,
+        workspace_parent=workspace_parent,
         remote_name=remote_name,
         base_branch=base_branch,
     )
@@ -62,31 +66,47 @@ def build_github_server(
         base_branch=base_branch,
     )
 
-    return build_server(
-        socket_path=socket_path,
-        repo_root=repo_root,
+    publisher = TrustedPublisher(
+        policy=ChangePolicy(),
         sink=proposal_sink,
+    )
+
+    return UnixSocketChangeServer(
+        socket_path=socket_path,
+        handler=TrustedChangeHandler(publisher),
     )
 
 
 async def serve(
     *,
     socket_path: Path,
-    repo_root: Path,
+    repo_root: Path | None = None,
     github_repository: str | None = None,
+    repository_url: str | None = None,
+    workspace_parent: Path | None = None,
     remote_name: str = "origin",
     base_branch: str = "main",
     gh_binary: str = "gh",
 ) -> None:
     if github_repository is None:
+        if repo_root is None:
+            raise ValueError("repo_root is required for local publication.")
+
         server = build_server(
             socket_path=socket_path,
             repo_root=repo_root,
         )
     else:
+        if repository_url is None:
+            raise ValueError("repository_url is required for GitHub publication.")
+
+        if workspace_parent is None:
+            raise ValueError("workspace_parent is required for GitHub publication.")
+
         server = build_github_server(
             socket_path=socket_path,
-            repo_root=repo_root,
+            repository_url=repository_url,
+            workspace_parent=workspace_parent,
             repository=github_repository,
             remote_name=remote_name,
             base_branch=base_branch,
@@ -124,12 +144,20 @@ def main() -> None:
 
     parser.add_argument(
         "--repo",
-        required=True,
         type=Path,
     )
 
     parser.add_argument(
         "--github-repository",
+    )
+
+    parser.add_argument(
+        "--repository-url",
+    )
+
+    parser.add_argument(
+        "--workspace-parent",
+        type=Path,
     )
 
     parser.add_argument(
@@ -154,6 +182,8 @@ def main() -> None:
             socket_path=args.socket,
             repo_root=args.repo,
             github_repository=args.github_repository,
+            repository_url=args.repository_url,
+            workspace_parent=args.workspace_parent,
             remote_name=args.remote_name,
             base_branch=args.base_branch,
             gh_binary=args.gh_binary,
