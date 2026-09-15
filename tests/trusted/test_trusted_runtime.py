@@ -254,9 +254,12 @@ printf '%s\\n' \
 
     socket_path = tmp_path / "publisher.sock"
 
+    workspaces = tmp_path / "workspaces"
+
     server = build_github_server(
         socket_path=socket_path,
-        repo_root=repo,
+        repository_url=str(remote),
+        workspace_parent=workspaces,
         repository="kersbaumerHugo/agent-platform",
         gh_binary=str(fake_gh),
     )
@@ -316,3 +319,4 @@ printf '%s\\n' \
     ).stdout.strip()
 
     assert remote_main == base_revision
+    assert list(workspaces.iterdir()) == []

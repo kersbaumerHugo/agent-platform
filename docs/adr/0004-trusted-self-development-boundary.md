@@ -337,13 +337,21 @@ Per ADR-0002, additional infrastructure must earn its place through evidence.
 - A single in-process lock limits publication concurrency.
 - Operational provisioning of users, permissions, systemd, and credential files must remain consistent with the versioned deployment definition.
 
-## Known limitation and next step
+## Disposable publication workspace
 
-The current trusted publication workspace remains on the newly created feature branch after a successful request.
+M6.3 resolves the mutable shared publication workspace limitation.
 
-The next implementation step is to make publication workspaces disposable or deterministically reset them to the trusted remote base for each request.
+Each remote publication now:
 
-This work is intentionally deferred from ADR-0004 because the current experiments already demonstrate the trust boundary itself, while disposable workspace behavior is a separate lifecycle and reliability concern.
+1. creates a fresh `publication-*` workspace;
+2. clones the trusted remote base;
+3. validates the requested base revision;
+4. publishes the branch;
+5. removes the workspace in a `finally` path.
+
+Cleanup is exercised for both successful and failed publication paths.
+
+Persistent publication workspace state is no longer part of the remote publication architecture.
 
 ## Decision outcome
 
