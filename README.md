@@ -6,9 +6,19 @@ A runtime-agnostic platform for executing, observing and evolving AI agents thro
 
 The platform is designed so runtimes, model providers and capability protocols remain replaceable.
 
-## V0 status
+## Current status
 
-The first functional vertical slice is complete.
+The first functional vertical slice is complete and the platform now includes:
+
+- a replaceable runtime boundary;
+- provider-neutral model execution;
+- OpenRouter and local OpenAI-compatible model adapters;
+- a local llama.cpp inference backend;
+- platform-owned tool capabilities exposed through MCP;
+- structured observability;
+- persistent systemd-based deployment;
+- a trusted self-development boundary;
+- supervised autonomous Worker execution.
 
 ```text
 Agent Runtime
@@ -16,25 +26,32 @@ Agent Runtime
     v
 RuntimeContract
     |
-    +----> Model Gateway -> ModelContract -> OpenRouter
+    +----> Model Gateway -> ModelContract
+    |                         |
+    |                         +----> OpenRouter
+    |                         |
+    |                         +----> Local OpenAI Adapter
+    |                                  |
+    |                                  v
+    |                              llama-server
     |
     +----> MCP Adapter -> ToolRegistry -> ToolContract -> Tool
 ```
 
-The validated agentic loop is:
+## Validated agentic loop
 
 ```text
 DSH
  -> Agent Platform Model Gateway
- -> OpenRouter
+ -> selected ModelContract adapter
  -> tool_call
  -> DSH
  -> MCP
  -> Agent Platform ToolRegistry
- -> DiagnosticEchoTool
+ -> Tool
  -> DSH
  -> Model Gateway
- -> OpenRouter
+ -> selected ModelContract adapter
  -> final response
 ```
 
@@ -44,6 +61,8 @@ DSH
 - DeepSeek Harness runtime adapter
 - ModelContract
 - OpenRouter model adapter
+- local OpenAI-compatible model adapter
+- local llama.cpp inference backend integration
 - internal OpenAI-compatible Model Gateway
 - ToolContract
 - ToolRegistry
@@ -55,6 +74,12 @@ DSH
 - Tempo integration
 - run_id correlation across model and tool execution
 - automated unit and smoke tests
+- persistent systemd deployment
+- immutable release directories and rollback
+- trusted self-development boundary
+- disposable Worker workspaces
+- supervised Worker subprocess execution
+- trusted publication path through pull requests and CI
 
 ## Architecture
 
@@ -62,7 +87,7 @@ See [docs/architecture.md](docs/architecture.md).
 
 Architecture decisions are recorded under [docs/adr](docs/adr).
 
-V0 execution evidence is documented under [docs/validation](docs/validation).
+Execution and experiment evidence is documented under [docs/evidence](docs/evidence) and [docs/validation](docs/validation).
 
 ## Development
 
@@ -120,7 +145,9 @@ python -m build
 git diff --check
 ```
 
-## V0 Definition of Done
+## Completed milestones
+
+### V0 — Functional vertical slice
 
 - [x] Platform-owned RuntimeContract.
 - [x] Runtime implementation is replaceable.
@@ -131,29 +158,58 @@ git diff --check
 - [x] Internal OpenAI-compatible Model Gateway.
 - [x] Platform-owned ToolContract and ToolRegistry.
 - [x] MCP exposed as a capability adapter, not platform core.
-- [x] Model-generated tool call executed successfully.
-- [x] Tool result returned to the model.
 - [x] Complete model -> tool -> model loop proven.
-- [x] Structured logs.
-- [x] Prometheus model and tool metrics.
-- [x] OpenTelemetry tracing.
-- [x] Tempo trace persistence.
-- [x] Cross-process run_id correlation.
-- [x] Automated test suite.
-- [x] Reproducible smoke validation.
-- [ ] Declarative homelab deployment.
+- [x] Structured logs, metrics and tracing.
+- [x] Automated test suite and reproducible smoke validation.
 
-The remaining deployment item is the next milestone rather than a V0 blocker.
+### M5 — Persistent deployment
+
+- [x] systemd lifecycle management.
+- [x] automatic recovery and boot recovery.
+- [x] immutable versioned releases.
+- [x] health verification.
+- [x] secret isolation.
+- [x] roll-forward and rollback.
+- [x] deployment observability.
+
+See ADR-0003.
+
+### M6 — Trusted self-development boundary
+
+- [x] fail-closed ChangePolicy.
+- [x] trusted publisher boundary.
+- [x] disposable publication workspaces.
+- [x] disposable Worker development workspaces.
+- [x] Worker without GitHub publication credentials.
+- [x] supervised subprocess execution and hard timeouts.
+- [x] provider readiness checks and typed upstream failures.
+- [x] safe Worker lifecycle diagnostics.
+- [x] human-controlled promotion through pull requests and CI.
 
 ## Next milestone
 
-M5 focuses on operating the Agent Platform as a persistent workload:
+### M7 — Memory & Recall V0
 
-- declarative deployment;
-- service lifecycle;
-- health/readiness;
-- restart and recovery;
-- secrets handling;
-- Prometheus scraping from deployed services;
-- dashboards and alerts;
-- deployment verification and rollback.
+M7 introduces persistent platform-owned memory without coupling the platform to a vector database, embedding provider or automatic context-injection mechanism.
+
+The V0 baseline is:
+
+- platform-owned memory and retrieval contracts;
+- explicit durable memory writes;
+- SQLite persistence;
+- lexical-first retrieval with FTS5/BM25;
+- Retrieval Acceptance Gate;
+- explicit abstention when evidence is insufficient;
+- scope isolation;
+- retrieval observability;
+- cross-run and restart persistence validation.
+
+The guiding separation is:
+
+```text
+Memory != Retrieval != Context Injection
+```
+
+Embeddings, vector databases, hybrid retrieval, reranking and automatic memory extraction remain deferred until evidence demonstrates that the lexical baseline is insufficient.
+
+See ADR-0005.
