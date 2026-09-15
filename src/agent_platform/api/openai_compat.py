@@ -86,10 +86,14 @@ router = APIRouter(
 
 
 def get_model_gateway() -> ModelGateway:
-    provider = os.environ.get(
-        "MODEL_PROVIDER",
-        "openrouter",
-    ).strip().lower()
+    provider = (
+        os.environ.get(
+            "MODEL_PROVIDER",
+            "openrouter",
+        )
+        .strip()
+        .lower()
+    )
 
     if provider == "openrouter":
         api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -100,7 +104,7 @@ def get_model_gateway() -> ModelGateway:
                 detail="OPENROUTER_API_KEY is not configured.",
             )
 
-        model = os.environ.get(
+        openrouter_model = os.environ.get(
             "OPENROUTER_MODEL",
             "openrouter/free",
         )
@@ -108,7 +112,7 @@ def get_model_gateway() -> ModelGateway:
         return ModelGateway(
             OpenRouterModelAdapter(
                 api_key=api_key,
-                model=model,
+                model=openrouter_model,
                 timeout_seconds=90.0,
             ),
             observer=default_observer,
@@ -117,7 +121,7 @@ def get_model_gateway() -> ModelGateway:
     if provider == "local":
         api_key = os.environ.get("LOCAL_MODEL_API_KEY")
         base_url = os.environ.get("LOCAL_MODEL_BASE_URL")
-        model = os.environ.get("LOCAL_MODEL_NAME")
+        local_model = os.environ.get("LOCAL_MODEL_NAME")
 
         if not api_key:
             raise HTTPException(
@@ -131,7 +135,7 @@ def get_model_gateway() -> ModelGateway:
                 detail="LOCAL_MODEL_BASE_URL is not configured.",
             )
 
-        if not model:
+        if not local_model:
             raise HTTPException(
                 status_code=503,
                 detail="LOCAL_MODEL_NAME is not configured.",
@@ -140,7 +144,7 @@ def get_model_gateway() -> ModelGateway:
         return ModelGateway(
             LocalOpenAIModelAdapter(
                 api_key=api_key,
-                model=model,
+                model=local_model,
                 base_url=base_url,
                 timeout_seconds=90.0,
                 enable_thinking=False,

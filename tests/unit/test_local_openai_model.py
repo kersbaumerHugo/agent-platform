@@ -18,9 +18,7 @@ from agent_platform.domain.model import (
 @pytest.mark.asyncio
 async def test_local_adapter_maps_platform_contract() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
-        assert str(request.url) == (
-            "http://192.168.10.40:8080/v1/chat/completions"
-        )
+        assert str(request.url) == ("http://192.168.10.40:8080/v1/chat/completions")
         assert request.headers["Authorization"] == "Bearer test-key"
 
         body = json.loads(request.content.decode())
@@ -93,9 +91,7 @@ async def test_local_adapter_maps_tool_calls() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content.decode())
 
-        assert body["tools"][0]["function"]["name"] == (
-            "diagnostic_echo"
-        )
+        assert body["tools"][0]["function"]["name"] == ("diagnostic_echo")
 
         return httpx.Response(
             200,
@@ -114,9 +110,7 @@ async def test_local_adapter_maps_tool_calls() -> None:
                                     "type": "function",
                                     "function": {
                                         "name": "diagnostic_echo",
-                                        "arguments": (
-                                            '{"message":"hello"}'
-                                        ),
+                                        "arguments": ('{"message":"hello"}'),
                                     },
                                 }
                             ],

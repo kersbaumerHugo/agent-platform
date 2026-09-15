@@ -121,9 +121,7 @@ class LocalOpenAIModelAdapter(ModelContract):
         self._client = client
         self._timeout_seconds = timeout_seconds
         self._enable_thinking = enable_thinking
-        self._tracer = tracer or trace.get_tracer(
-            "agent_platform.providers.local_openai"
-        )
+        self._tracer = tracer or trace.get_tracer("agent_platform.providers.local_openai")
 
     @property
     def provider(self) -> str:
@@ -136,20 +134,14 @@ class LocalOpenAIModelAdapter(ModelContract):
     async def generate(self, request: ModelRequest) -> ModelResult:
         payload: dict[str, object] = {
             "model": self.model,
-            "messages": [
-                _serialize_message(message)
-                for message in request.messages
-            ],
+            "messages": [_serialize_message(message) for message in request.messages],
             "chat_template_kwargs": {
                 "enable_thinking": self._enable_thinking,
             },
         }
 
         if request.tools:
-            payload["tools"] = [
-                _serialize_tool(tool)
-                for tool in request.tools
-            ]
+            payload["tools"] = [_serialize_tool(tool) for tool in request.tools]
 
         if request.temperature is not None:
             payload["temperature"] = request.temperature
@@ -163,14 +155,10 @@ class LocalOpenAIModelAdapter(ModelContract):
         }
 
         owns_client = self._client is None
-        client = self._client or httpx.AsyncClient(
-            timeout=self._timeout_seconds
-        )
+        client = self._client or httpx.AsyncClient(timeout=self._timeout_seconds)
 
         try:
-            with self._tracer.start_as_current_span(
-                "provider.local_openai"
-            ) as span:
+            with self._tracer.start_as_current_span("provider.local_openai") as span:
                 span.set_attribute(
                     "agent_platform.run.id",
                     str(request.run_id),
@@ -201,18 +189,12 @@ class LocalOpenAIModelAdapter(ModelContract):
                     try:
                         response_payload = response.json()
                     except ValueError as exc:
-                        raise LocalOpenAIError(
-                            "Local model returned invalid JSON."
-                        ) from exc
+                        raise LocalOpenAIError("Local model returned invalid JSON.") from exc
 
-                    parsed = _Response.model_validate(
-                        response_payload
-                    )
+                    parsed = _Response.model_validate(response_payload)
 
                     if not parsed.choices:
-                        raise LocalOpenAIError(
-                            "Local model returned no choices."
-                        )
+                        raise LocalOpenAIError("Local model returned no choices.")
 
                     choice = parsed.choices[0]
 
@@ -226,18 +208,14 @@ class LocalOpenAIModelAdapter(ModelContract):
                     ]
 
                     if choice.message.content is None and not tool_calls:
-                        raise LocalOpenAIError(
-                            "Local model returned neither text nor tool calls."
-                        )
+                        raise LocalOpenAIError("Local model returned neither text nor tool calls.")
 
                     usage = None
 
                     if parsed.usage is not None:
                         usage = TokenUsage(
                             prompt_tokens=parsed.usage.prompt_tokens,
-                            completion_tokens=(
-                                parsed.usage.completion_tokens
-                            ),
+                            completion_tokens=(parsed.usage.completion_tokens),
                             total_tokens=parsed.usage.total_tokens,
                         )
 
@@ -262,9 +240,7 @@ class LocalOpenAIModelAdapter(ModelContract):
                         model=parsed.model,
                         output=choice.message.content or "",
                         tool_calls=tool_calls,
-                        reasoning_content=(
-                            choice.message.reasoning_content
-                        ),
+                        reasoning_content=(choice.message.reasoning_content),
                         provider_request_id=parsed.id,
                         finish_reason=choice.finish_reason,
                         usage=usage,
