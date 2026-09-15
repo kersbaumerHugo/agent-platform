@@ -73,9 +73,16 @@ class SubprocessWorkerExecutor:
         except TimeoutError as exc:
             await self._terminate_process_group(process)
 
-            await communicate_task
+            _, stderr = await communicate_task
 
-            raise WorkerProcessTimeoutError("Worker execution exceeded hard timeout.") from exc
+            lifecycle_tail = self._safe_lifecycle_tail(stderr)
+
+            message = "Worker execution exceeded hard timeout."
+
+            if lifecycle_tail:
+                message += "\nDSH lifecycle tail:\n" + lifecycle_tail
+
+            raise WorkerProcessTimeoutError(message) from exc
         except asyncio.CancelledError:
             await self._terminate_process_group(process)
 
@@ -99,6 +106,21 @@ class SubprocessWorkerExecutor:
                 errors="replace",
             ).strip()
         )
+
+    @staticmethod
+    def _safe_lifecycle_tail(
+        stderr: bytes,
+        *,
+        max_lines: int = 50,
+    ) -> str:
+        lines = stderr.decode(
+            "utf-8",
+            errors="replace",
+        ).splitlines()
+
+        safe = [line for line in lines if line.startswith("DSH_LIFECYCLE ")]
+
+        return "\n".join(safe[-max_lines:])
 
     async def _terminate_process_group(
         self,

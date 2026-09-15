@@ -17,12 +17,16 @@ class _DSHRunResult(Protocol):
     finish_reason: str | None
 
 
+DSHNotificationCallback = Callable[[object], None]
+
+
 class _DSHClient(Protocol):
     def run(
         self,
         prompt: str,
         *,
         session_id: str,
+        on_notification: DSHNotificationCallback | None = None,
     ) -> _DSHRunResult: ...
 
     def close(self) -> None: ...
@@ -41,6 +45,7 @@ class DSHRuntime(RuntimeContract):
         patches: tuple[Path, ...] = (),
         env: Mapping[str, str] | None = None,
         client_factory: Callable[[], _DSHClient] | None = None,
+        notification_callback: DSHNotificationCallback | None = None,
     ) -> None:
         if not provider:
             raise ValueError("DSH provider must not be empty.")
@@ -57,6 +62,7 @@ class DSHRuntime(RuntimeContract):
         self._patches = tuple(patch.resolve() for patch in patches)
         self._env = dict(env or {})
         self._client_factory = client_factory
+        self._notification_callback = notification_callback
 
     @property
     def name(self) -> str:
@@ -78,10 +84,17 @@ class DSHRuntime(RuntimeContract):
         client = self._build_client(request)
 
         try:
-            result = client.run(
-                request.input,
-                session_id=str(request.run_id),
-            )
+            if self._notification_callback is None:
+                result = client.run(
+                    request.input,
+                    session_id=str(request.run_id),
+                )
+            else:
+                result = client.run(
+                    request.input,
+                    session_id=str(request.run_id),
+                    on_notification=(self._notification_callback),
+                )
         finally:
             client.close()
 
