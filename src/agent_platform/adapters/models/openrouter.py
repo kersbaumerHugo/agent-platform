@@ -52,7 +52,11 @@ class _OpenRouterResponse(BaseModel):
     usage: _OpenRouterUsage | None = None
 
 
-class OpenRouterProviderError(RuntimeError):
+class OpenRouterError(RuntimeError):
+    pass
+
+
+class OpenRouterProviderError(OpenRouterError):
     def __init__(
         self,
         *,
@@ -281,7 +285,7 @@ class OpenRouterModelAdapter(ModelContract):
                     parsed = _OpenRouterResponse.model_validate(response_payload)
 
                     if not parsed.choices:
-                        raise RuntimeError("OpenRouter returned no choices.")
+                        raise OpenRouterError("OpenRouter returned no choices.")
 
                     choice = parsed.choices[0]
 
@@ -295,7 +299,7 @@ class OpenRouterModelAdapter(ModelContract):
                     ]
 
                     if choice.message.content is None and not tool_calls:
-                        raise RuntimeError("OpenRouter returned neither text nor tool calls.")
+                        raise OpenRouterError("OpenRouter returned neither text nor tool calls.")
 
                     usage = None
 
