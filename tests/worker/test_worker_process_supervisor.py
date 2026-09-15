@@ -7,6 +7,7 @@ import pytest
 from agent_platform.worker.session import (
     WorkerDevelopmentSession,
     WorkerDevelopmentTask,
+    WorkerExecutionRequest,
 )
 from agent_platform.worker.supervisor import (
     SubprocessWorkerExecutor,
@@ -134,3 +135,58 @@ async def test_hard_timeout_cleans_worker_workspace(
         )
 
     assert list(parent.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_hard_timeout_exposes_only_safe_lifecycle_stderr(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    def command_factory(
+        path: Path,
+    ) -> tuple[str, ...]:
+        del path
+
+        return (
+            sys.executable,
+            "-c",
+            (
+                "import sys, time; "
+                "print("
+                "'DSH_LIFECYCLE "
+                '{\\"method\\":\\"session.status\\",'
+                '\\"status\\":\\"busy\\"}\', '
+                "file=sys.stderr, flush=True); "
+                "print("
+                "'SECRET must-not-leak', "
+                "file=sys.stderr, flush=True); "
+                "time.sleep(60)"
+            ),
+        )
+
+    executor = SubprocessWorkerExecutor(
+        command_factory=command_factory,
+        timeout_seconds=1.0,
+        terminate_grace_seconds=0.2,
+    )
+
+    with pytest.raises(
+        WorkerProcessTimeoutError,
+    ) as exc_info:
+        await executor.execute(
+            WorkerExecutionRequest(
+                goal="hang",
+                workspace=workspace,
+            )
+        )
+
+    message = str(exc_info.value)
+
+    assert "DSH lifecycle tail" in message
+    assert "session.status" in message
+    assert '"status":"busy"' in message
+
+    assert "SECRET" not in message
+    assert "must-not-leak" not in message

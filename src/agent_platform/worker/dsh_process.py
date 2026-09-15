@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from time import monotonic
 
 from agent_platform.adapters.workers.dsh import (
     DshWorkerExecutor,
@@ -20,6 +23,64 @@ def _required_env(name: str) -> str:
         raise RuntimeError(f"Required environment variable is missing: {name}")
 
     return value
+
+
+def _lifecycle_observer() -> Callable[[object], None]:
+    started_at = monotonic()
+
+    def observe(notification: object) -> None:
+        method = getattr(
+            notification,
+            "method",
+            None,
+        )
+
+        payload = getattr(
+            notification,
+            "payload",
+            None,
+        )
+
+        if not isinstance(method, str):
+            return
+
+        if not isinstance(payload, dict):
+            return
+
+        record: dict[str, object] = {
+            "elapsed_seconds": round(
+                monotonic() - started_at,
+                3,
+            ),
+            "method": method,
+        }
+
+        if method == "session.status":
+            status = payload.get("status")
+
+            if isinstance(status, str):
+                record["status"] = status
+
+        if method == "session.event":
+            event = payload.get("event")
+
+            if isinstance(event, dict):
+                event_type = event.get("type")
+
+                if isinstance(event_type, str):
+                    record["event_type"] = event_type
+
+        print(
+            "DSH_LIFECYCLE "
+            + json.dumps(
+                record,
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+            flush=True,
+        )
+
+    return observe
 
 
 def _optional_timeout() -> float | None:
@@ -66,6 +127,7 @@ async def _run() -> int:
         ),
         request_timeout_seconds=_optional_timeout(),
         env=runtime_env,
+        notification_callback=(_lifecycle_observer()),
     )
 
     result = await executor.execute(

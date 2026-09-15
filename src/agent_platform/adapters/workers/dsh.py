@@ -4,7 +4,10 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from uuid import uuid4
 
-from agent_platform.adapters.runtimes.dsh import DSHRuntime
+from agent_platform.adapters.runtimes.dsh import (
+    DSHNotificationCallback,
+    DSHRuntime,
+)
 from agent_platform.contracts.runtime import RuntimeContract
 from agent_platform.domain.models import RuntimeRequest
 from agent_platform.worker.session import (
@@ -29,6 +32,7 @@ class DshWorkerExecutor:
         patches: tuple[Path, ...] = (),
         env: Mapping[str, str] | None = None,
         runtime_factory: RuntimeFactory | None = None,
+        notification_callback: DSHNotificationCallback | None = None,
     ) -> None:
         if not provider.strip():
             raise ValueError("provider must not be empty.")
@@ -44,6 +48,7 @@ class DshWorkerExecutor:
         self._patches = patches
         self._env = dict(env or {})
         self._runtime_factory = runtime_factory
+        self._notification_callback = notification_callback
 
     async def execute(
         self,
@@ -81,6 +86,7 @@ class DshWorkerExecutor:
             request_timeout_seconds=(self._request_timeout_seconds),
             patches=self._patches,
             env=self._env,
+            notification_callback=(self._notification_callback),
         )
 
     @staticmethod
