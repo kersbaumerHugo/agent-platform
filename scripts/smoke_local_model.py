@@ -54,10 +54,7 @@ async def main() -> None:
                 ),
                 ModelMessage(
                     role=MessageRole.USER,
-                    content=(
-                        "Responda exatamente: "
-                        "Agent Platform local inference is working."
-                    ),
+                    content=("Responda exatamente: Agent Platform local inference is working."),
                 ),
             ],
             temperature=0,
