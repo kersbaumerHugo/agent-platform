@@ -8,13 +8,16 @@ The platform is designed so runtimes, model providers and capability protocols r
 
 ## Current status
 
-The first functional vertical slice is complete and the platform now includes:
+The platform currently includes:
 
 - a replaceable runtime boundary;
 - provider-neutral model execution;
 - OpenRouter and local OpenAI-compatible model adapters;
 - a local llama.cpp inference backend;
 - platform-owned tool capabilities exposed through MCP;
+- persistent Memory & Recall capabilities;
+- lexical-first retrieval with SQLite FTS5/BM25;
+- explicit retrieval ACCEPT / ABSTAIN policy;
 - structured observability;
 - persistent systemd-based deployment;
 - a trusted self-development boundary;
@@ -35,7 +38,20 @@ RuntimeContract
     |                                  v
     |                              llama-server
     |
-    +----> MCP Adapter -> ToolRegistry -> ToolContract -> Tool
+    +----> MCP Adapter -> ToolRegistry
+                              |
+                              +----> ToolContract -> Tool
+                              |
+                              +----> memory_remember -> MemoryStoreContract -> SQLite
+                              |
+                              +----> memory_recall -> RetrievalContract
+                                                       |
+                                                       v
+                                                FTS5 / BM25
+                                                       |
+                                                       v
+                                             Acceptance Gate
+                                              ACCEPT / ABSTAIN
 ```
 
 ## Validated agentic loop
@@ -68,6 +84,17 @@ DSH
 - ToolRegistry
 - MCP Streamable HTTP adapter
 - diagnostic tool
+- MemoryScope / MemoryRecord domain models
+- MemoryStoreContract
+- RetrievalContract
+- RetrievalAcceptanceContract
+- SQLite MemoryStore adapter
+- SQLite FTS5/BM25 retrieval adapter
+- deterministic Retrieval Acceptance Gate
+- `memory_remember`
+- `memory_recall`
+- explicit scope isolation
+- explicit ACCEPT / ABSTAIN recall semantics
 - structured observability events
 - Prometheus metrics
 - OpenTelemetry tracing
@@ -186,23 +213,20 @@ See ADR-0003.
 - [x] safe Worker lifecycle diagnostics.
 - [x] human-controlled promotion through pull requests and CI.
 
-## Next milestone
-
 ### M7 — Memory & Recall V0
 
-M7 introduces persistent platform-owned memory without coupling the platform to a vector database, embedding provider or automatic context-injection mechanism.
-
-The V0 baseline is:
-
-- platform-owned memory and retrieval contracts;
-- explicit durable memory writes;
-- SQLite persistence;
-- lexical-first retrieval with FTS5/BM25;
-- Retrieval Acceptance Gate;
-- explicit abstention when evidence is insufficient;
-- scope isolation;
-- retrieval observability;
-- cross-run and restart persistence validation.
+- [x] platform-owned memory and retrieval contracts.
+- [x] explicit durable memory writes.
+- [x] SQLite persistence.
+- [x] lexical-first retrieval with FTS5/BM25.
+- [x] deterministic Retrieval Acceptance Gate.
+- [x] explicit ACCEPT / ABSTAIN semantics.
+- [x] scope isolation.
+- [x] MCP capabilities through `memory_remember` and `memory_recall`.
+- [x] cross-run persistence.
+- [x] process recovery persistence.
+- [x] guest reboot persistence.
+- [x] application release persistence.
 
 The guiding separation is:
 
@@ -212,4 +236,10 @@ Memory != Retrieval != Context Injection
 
 Embeddings, vector databases, hybrid retrieval, reranking and automatic memory extraction remain deferred until evidence demonstrates that the lexical baseline is insufficient.
 
-See ADR-0005.
+See ADR-0005 and `docs/evidence/m7-memory-recall-results.md`.
+
+## Next steps
+
+Continue measuring the lexical retrieval baseline before promoting additional retrieval complexity.
+
+Dense retrieval, hybrid retrieval, reranking and automatic context injection remain candidates only when evidence demonstrates a requirement gap or measurable improvement.

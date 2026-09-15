@@ -8,7 +8,7 @@ The platform proves the principle:
 
 > Agent != Platform
 
-Runtimes, model providers, tools, deployment backends and future memory backends remain adapters behind platform-owned contracts.
+Runtimes, model providers, tools, deployment backends and memory backends remain adapters behind platform-owned contracts.
 
 ## Current architecture
 
@@ -49,10 +49,25 @@ DSH
 |     ToolContract     |
 +----------+-----------+
            |
-           v
-+----------------------+
-| Platform Capability  |
-+----------------------+
+     +-----+-------------------------------+
+     |                                     |
+     v                                     v
+Platform Tools                      Memory & Recall
+                                          |
+                         +----------------+----------------+
+                         |                                 |
+                         v                                 v
+                  memory_remember                    memory_recall
+                         |                                 |
+                         v                                 v
+                MemoryStoreContract                 RetrievalContract
+                         |                                 |
+                         v                                 v
+                       SQLite                       SQLite FTS5/BM25
+                                                           |
+                                                           v
+                                               Retrieval Acceptance Gate
+                                                   ACCEPT / ABSTAIN
 ```
 
 ## Core contracts
@@ -83,6 +98,24 @@ Defines platform-owned capabilities.
 Tools are registered in ToolRegistry and exposed externally through an MCP adapter.
 
 MCP is a capability protocol boundary, not the tool implementation itself.
+
+### MemoryStoreContract
+
+Defines durable platform-owned memory persistence independently of the storage backend.
+
+The current adapter is SQLite.
+
+### RetrievalContract
+
+Defines provider-neutral recall/search behavior.
+
+The current adapter uses SQLite FTS5 with BM25 ranking.
+
+### RetrievalAcceptanceContract
+
+Defines whether retrieved evidence is sufficient to use.
+
+The current deterministic implementation returns ACCEPT or ABSTAIN based on lexical evidence and scope constraints.
 
 ## Model-provider flow
 
@@ -153,6 +186,49 @@ Selected Model Provider
 Final response
 ```
 
+## Memory & Recall flow
+
+```text
+Agent / Runtime
+      |
+      | capability call
+      v
+MCP Adapter
+      |
+      v
+ToolRegistry
+      |
+      +----------------------+
+      |                      |
+      v                      v
+memory_remember         memory_recall
+      |                      |
+      v                      v
+MemoryStoreContract    RetrievalContract
+      |                      |
+      v                      v
+SQLite                 SQLite FTS5 / BM25
+                             |
+                             v
+                  Retrieval Acceptance Gate
+                             |
+                       ACCEPT / ABSTAIN
+```
+
+The guiding separation is:
+
+```text
+Memory != Retrieval != Context Injection
+```
+
+Memory owns durable persistence.
+
+Retrieval owns search and ranking.
+
+The Retrieval Acceptance Gate decides whether retrieved evidence is sufficient to return.
+
+Automatic context injection is not part of the current baseline.
+
 ## Deployment architecture
 
 The accepted homelab deployment uses:
@@ -161,7 +237,8 @@ The accepted homelab deployment uses:
 - Python virtual environments;
 - immutable versioned release directories;
 - an atomic `current` symlink;
-- host-local configuration and secret files.
+- host-local configuration and secret files;
+- persistent application state outside immutable releases.
 
 Conceptually:
 
@@ -177,7 +254,13 @@ Conceptually:
 │       ├── .venv/
 │       └── REVISION
 └── current -> releases/<active-release>
+
+/var/lib/agent-platform/
+└── memory/
+    └── memory.sqlite3
 ```
+
+Application release replacement does not delete durable memory.
 
 Deployment infrastructure remains subordinate to platform requirements and is not part of the Agent Platform domain model.
 
@@ -249,7 +332,7 @@ Structured events cover:
 - tool request lifecycle;
 - bounded Worker lifecycle diagnostics.
 
-Prompts, tool arguments, file contents, model outputs and credentials are not logged by default.
+Prompts, tool arguments, file contents, model outputs, memory content and credentials are not logged by default.
 
 ### Metrics
 
@@ -266,6 +349,8 @@ MCP/tool process:
 
 Metrics are process-local and exposed by the process that owns the workload.
 
+Dedicated retrieval-quality metrics remain an evidence-gated follow-up.
+
 ### Tracing
 
 OpenTelemetry spans include provider and capability boundaries, including:
@@ -279,14 +364,14 @@ Traces are exported through OTLP to Tempo.
 
 ## Process boundaries
 
-Current local topology:
+Current homelab topology:
 
 ```text
-:8000                 Agent Platform API / Model Gateway / metrics
-:8001                 MCP Tool Server / tool metrics
+192.168.10.30:8000    Agent Platform API / Model Gateway / metrics
+192.168.10.30:8001    MCP Tool Server / tool metrics
 192.168.10.40:8080    authenticated local inference backend
-:4317                 Tempo OTLP receiver in homelab
-:3200                 Tempo query API in homelab
+192.168.10.20:4317    Tempo OTLP receiver
+192.168.10.20:3200    Tempo query API
 ```
 
 ## Security boundaries
@@ -303,99 +388,44 @@ The DSH runtime receives only the internal Model Gateway credential.
 
 The MCP server remains intended for trusted/local networking until authentication, authorization and tool policy enforcement are explicitly implemented.
 
-## M7 — Memory & Recall target architecture
+Memory retrieval requires an explicit namespace and never searches outside that scope.
 
-M7 introduces persistent memory as a separate platform capability.
+Durable memory lives outside immutable application releases under the persistent-state boundary.
 
-The separation is:
+## M7 validation status
 
-```text
-Memory != Retrieval != Context Injection
-```
+M7 Memory & Recall V0 is accepted.
 
-Target V0:
+Validated behavior includes:
 
-```text
-Agent / Runtime
-      |
-      | capability call
-      v
-MCP Adapter
-      |
-      v
-ToolRegistry
-      |
-      +----------------------+
-      |                      |
-      v                      v
-memory_remember         memory_recall
-      |                      |
-      v                      v
-MemoryStoreContract    RetrievalContract
-      |                      |
-      v                      v
-SQLite                 SQLite FTS5 / BM25
-                             |
-                             v
-                  Retrieval Acceptance Gate
-                             |
-                       ACCEPT / ABSTAIN
-```
+- explicit write through `memory_remember`;
+- recall through `memory_recall`;
+- deterministic lexical ranking baseline;
+- explicit ABSTAIN for unrelated queries;
+- scope isolation;
+- persistence across separate executions;
+- persistence after MCP SIGKILL and systemd recovery;
+- persistence after complete guest reboot;
+- persistence across application roll-forward.
 
-### Memory
-
-Memory owns durable persistence.
-
-V0 memory writes are explicit.
-
-Automatic extraction from every conversation or model response is deferred.
-
-### Retrieval
-
-Retrieval owns search and ranking.
-
-The V0 baseline is lexical-first using SQLite FTS5/BM25.
-
-### Retrieval Acceptance Gate
-
-The Retrieval Acceptance Gate decides whether retrieved evidence is sufficient to use.
-
-Retrieval must be allowed to abstain.
-
-Top-k returning results does not imply that the context is relevant enough.
-
-### Context injection
-
-Automatic context injection is not part of M7 V0.
-
-The initial integration surface is the existing platform capability boundary.
-
-If later evidence shows that explicit recall materially limits task success, an automatic Context Builder may be evaluated separately.
-
-## Persistent state boundary
-
-Memory state must not live inside immutable application release directories.
-
-Conceptually:
+See:
 
 ```text
-/var/lib/agent-platform/
-└── memory/
-    └── ...
+docs/adr/0005-memory-recall-v0.md
+docs/evidence/m7-memory-recall-results.md
 ```
-
-The exact storage layout remains a deployment concern.
-
-Application release replacement must not delete durable memory.
 
 ## Current limitations
 
 - No cross-process traceparent propagation.
 - No general policy engine for tool authorization.
 - No persistent control plane.
-- Memory and recall are not yet implemented.
 - MCP is not hardened for untrusted networks.
 - Provider routing/fallback is intentionally minimal.
 - Semantic retrieval is not justified by current evidence.
+- Automatic memory extraction is not implemented.
+- Automatic context injection is not implemented.
+- Dedicated retrieval-quality metrics are not yet implemented.
+- Persistent SQLite file creation permissions need deployment hardening so restrictive mode is automatic.
 
 These limitations are intentional and subject to evidence-gated evolution.
