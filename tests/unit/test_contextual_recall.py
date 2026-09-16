@@ -7,6 +7,7 @@ from agent_platform.application.contextual_recall import ContextualRecall
 from agent_platform.application.retrieval_acceptance import (
     LexicalRetrievalAcceptanceGate,
 )
+from agent_platform.domain.context import ContextRef, ContextRole
 from agent_platform.domain.memory import (
     MemoryRecord,
     MemoryScope,
@@ -14,7 +15,6 @@ from agent_platform.domain.memory import (
     RetrievalHit,
     RetrievalQuery,
 )
-from agent_platform.domain.work import ContextRef, ContextRole
 
 
 def make_hit(

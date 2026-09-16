@@ -3,10 +3,9 @@ from datetime import datetime
 import pytest
 from pydantic import ValidationError
 
+from agent_platform.domain.context import ContextRef, ContextRole
 from agent_platform.domain.models import RunResult, RunStatus
 from agent_platform.domain.work import (
-    ContextRef,
-    ContextRole,
     WorkRequest,
     WorkResult,
     WorkStatus,

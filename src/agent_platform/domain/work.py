@@ -5,18 +5,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, model_validator
 
+from agent_platform.domain.context import ContextRef
 from agent_platform.domain.models import RunResult, utcnow
-
-
-class ContextRole(StrEnum):
-    SHARED = "shared"
-    DELIVERY = "delivery"
-    SUBJECT = "subject"
-
-
-class ContextRef(BaseModel):
-    role: ContextRole
-    namespace: str = Field(min_length=1)
 
 
 class WorkStep(BaseModel):
