@@ -9,7 +9,9 @@ from agent_platform.adapters.observability.tracing import configure_tracing
 from agent_platform.adapters.runtimes.fake import FakeRuntime
 from agent_platform.api.openai_compat import router as openai_compat_router
 from agent_platform.application.run_agent import RunAgent
+from agent_platform.application.work_orchestrator import WorkOrchestrator
 from agent_platform.domain.models import RunRequest, RunResult
+from agent_platform.domain.work import WorkRequest, WorkResult
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,6 +26,9 @@ service = RunAgent(
     runtime=FakeRuntime(),
     observer=default_observer,
 )
+work_service = WorkOrchestrator(
+    run_agent=service,
+)
 
 
 @app.get("/health")
@@ -34,6 +39,11 @@ async def health() -> dict[str, str]:
 @app.post("/runs", response_model=RunResult)
 async def create_run(request: RunRequest) -> RunResult:
     return await service.execute(request)
+
+
+@app.post("/work", response_model=WorkResult)
+async def create_work(request: WorkRequest) -> WorkResult:
+    return await work_service.execute(request)
 
 
 @app.get("/metrics")
