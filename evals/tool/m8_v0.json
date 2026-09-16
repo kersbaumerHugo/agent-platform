@@ -1,0 +1,57 @@
+{
+  "suite_id": "m8-tool-v0",
+  "cases": [
+    {
+      "case_id": "diagnostic-echo-success",
+      "input": {
+        "tool_name": "diagnostic_echo",
+        "arguments": {
+          "message": "M8 tool evaluation"
+        }
+      },
+      "expected": {
+        "succeeds": true,
+        "output_contains": {
+          "message": "M8 tool evaluation"
+        }
+      },
+      "metadata": {
+        "category": "tool-success"
+      }
+    },
+    {
+      "case_id": "diagnostic-echo-second-success",
+      "input": {
+        "tool_name": "diagnostic_echo",
+        "arguments": {
+          "message": "Deterministic capability evaluation"
+        }
+      },
+      "expected": {
+        "succeeds": true,
+        "output_contains": {
+          "message": "Deterministic capability evaluation"
+        }
+      },
+      "metadata": {
+        "category": "tool-success"
+      }
+    },
+    {
+      "case_id": "diagnostic-echo-validation-failure",
+      "input": {
+        "tool_name": "diagnostic_echo",
+        "arguments": {
+          "message": ""
+        }
+      },
+      "expected": {
+        "succeeds": false,
+        "error_type": "ValidationError"
+      },
+      "metadata": {
+        "category": "expected-tool-failure"
+      }
+    }
+  ]
+}
