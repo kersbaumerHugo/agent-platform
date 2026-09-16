@@ -1,23 +1,17 @@
 # ADR-0006: Evaluation Plane / Eval-as-Code
 
-- Status: Proposed
-- Date: 2026-09-15
+- Status: Accepted
+- Proposed: 2026-09-15
+- Accepted: 2026-09-16
 - Governing principle: ADR-0002 — Evidence-Gated Architecture
+- Evidence: `docs/evidence/m8-eval-experiment-results.md`
 
-## Trigger
+## Context
 
-The Agent Platform already requires evidence before material architectural
-changes are accepted.
+The Agent Platform requires evidence before material architectural complexity is
+accepted.
 
-That process has been successfully applied to:
-
-- persistent deployment;
-- trusted self-development boundaries;
-- local model inference;
-- Memory & Recall;
-- retrieval acceptance behavior.
-
-However, evaluation is still mostly implemented through a combination of:
+Before M8, evaluation evidence was produced through a combination of:
 
 - unit tests;
 - smoke scripts;
@@ -25,116 +19,86 @@ However, evaluation is still mostly implemented through a combination of:
 - Markdown evidence;
 - operator interpretation.
 
-This works, but the platform currently lacks a reusable mechanism for expressing
-evaluation cases and producing structured quality evidence.
+That process worked, but repeated experiments lacked a small shared mechanism for
+representing labeled evaluation cases and emitting structured quality evidence.
 
-## Principle
+M7 Memory & Recall created a suitable deterministic workload for testing whether
+a reusable Evaluation Plane could provide enough value to justify a new platform
+abstraction.
 
-Evaluation is a distinct concern.
+## Decision
+
+Accept a minimal, provider-agnostic **Evaluation Plane / Eval-as-Code**.
+
+The accepted V0 is:
+
+```text
+EvaluationCase
+      |
+      v
+EvalRunner
+      |
+      v
+EvaluationContract
+      |
+      v
+capability-specific evaluator
+      |
+      v
+EvaluationResult
+```
+
+The Evaluation Plane is responsible for executing reusable evaluation cases and
+producing structured evidence about whether observed capability behavior
+satisfied explicit expectations.
+
+It does not own architectural promotion.
+
+## Core principle
 
 ```text
 Eval != Observability != Benchmark != Test != Guardrail
 ```
 
-### Observability
-
-Observability records what happened.
-
-Examples:
-
-- logs;
-- traces;
-- metrics;
-- lifecycle events;
-- token usage;
-- latency.
-
 ### Evaluation
 
-Evaluation determines how well a result satisfied an expected objective.
+Determines how well a capability result satisfied defined expectations.
 
-Examples:
+### Observability
 
-- whether a relevant memory was recalled;
-- whether an irrelevant query correctly abstained;
-- whether a tool trajectory completed successfully;
-- whether a generated artifact met acceptance criteria.
+Records what happened during execution.
 
 ### Benchmark
 
-Benchmarking compares implementations, models, providers or configurations under
-controlled conditions.
+Compares alternatives under controlled conditions.
 
 ### Test
 
-Tests verify implementation invariants and expected program behavior.
+Verifies implementation invariants and expected program behavior.
 
 ### Guardrail
 
-Guardrails prevent or block prohibited behavior.
+Prevents or blocks prohibited runtime behavior.
 
-Evaluation may later inform promotion policy, but it is not itself a runtime
-guardrail.
+These concerns may exchange evidence, but they remain distinct.
 
-## Current baseline
+## Accepted core concepts
 
-The baseline is documentation-first evidence collection under ADR-0002.
+### EvaluationCase
 
-The current process is valid and remains authoritative while M8 is experimental.
+A reusable, data-oriented representation of:
 
-There is no accepted Evaluation Plane yet.
+- case identity;
+- input;
+- expected behavior;
+- metadata.
 
-## Proposed decision
+The core case remains generic. Capability-specific validation belongs to the
+evaluator.
 
-Introduce an experimental, provider-agnostic Evaluation Plane based on
-Eval-as-Code.
+### EvaluationOutcome
 
-The proposal is:
-
-```text
-Target execution
-      |
-      v
-Observed result
-      |
-      v
-EvaluationContract
-      |
-      v
-Eval Runner
-      |
-      v
-EvaluationResult
-      |
-      +--> outcome
-      +--> metrics
-      +--> reason_code
-      +--> metadata
-```
-
-The plane must remain independent from the runtime, model provider, retrieval
-backend and tool protocol being evaluated.
-
-## Proposed core concepts
-
-The minimum domain should contain equivalents of:
-
-```text
-EvaluationCase
-EvaluationResult
-EvaluationOutcome
-EvaluationMetric
-EvaluationContract
-```
-
-A runner may coordinate execution, but the runner itself must not become the
-definition of evaluation semantics.
-
-Evaluation semantics belong to the evaluator.
-
-## Initial outcome model
-
-The initial outcome vocabulary should remain intentionally small:
+The accepted V0 vocabulary is intentionally small:
 
 ```text
 PASS
@@ -142,193 +106,216 @@ FAIL
 ERROR
 ```
 
-Continuous scores may be included as metrics when needed, but a universal
-0-to-1 quality score is explicitly not required.
+No universal quality score is required.
 
-Different evaluation types may require different metrics.
+### EvaluationResult
 
-## First implementation target
+A structured result containing:
 
-The first evaluator should target M7 Memory & Recall.
+- case ID;
+- evaluator identity;
+- outcome;
+- reason code;
+- finite numeric metrics;
+- metadata.
 
-Why:
+### EvaluationContract
 
-- behavior is deterministic;
-- expected results can be labeled explicitly;
-- ACCEPT and ABSTAIN are already first-class outcomes;
-- retrieval ranking can be measured;
-- the workload does not require subjective language judging;
-- the existing platform contracts provide a clean integration boundary.
+The boundary implemented by capability-specific evaluators.
 
-Example:
+Evaluation semantics belong to the evaluator rather than the runner.
 
-```text
-EvaluationCase
-  query: local inference
-  namespace: agent
-  expected_decision: ACCEPT
-  expected_memory: memory-123
-```
+### EvalRunner
 
-Execution:
+The application-layer coordinator responsible for:
 
-```text
-case
-  |
-  v
-RetrievalContract
-  |
-  v
-Retrieval Acceptance Gate
-  |
-  v
-actual result
-  |
-  v
-Retrieval evaluator
-  |
-  v
-PASS / FAIL + metrics
-```
+- executing cases;
+- invoking an evaluator;
+- preserving case order;
+- collecting results;
+- converting evaluator exceptions into ERROR results;
+- summarizing PASS / FAIL / ERROR outcomes.
 
-## Eval Runner responsibilities
+The runner is not a general workflow orchestrator.
 
-The proposed Eval Runner may:
+## Why this is accepted
 
-- execute evaluation cases;
-- invoke the relevant evaluator;
-- collect structured results;
-- aggregate deterministic metrics;
-- correlate results with experiment identifiers;
-- emit a reproducible report.
+The M8 experiment demonstrated reusable value across two independent platform
+capabilities.
 
-It should not:
+### Retrieval evaluation
 
-- select architecture automatically;
-- mutate production configuration;
-- promote a candidate automatically;
-- become a general workflow orchestrator;
-- require a persistent service;
-- require LLM-based judgment for deterministic cases.
-
-## Deterministic evals first
-
-M8 begins with deterministic code-based evaluators.
-
-Examples:
+The first evaluator exercised the accepted M7 stack through platform-owned
+interfaces:
 
 ```text
-exact outcome match
-expected tool invoked
-expected memory present
-expected memory absent
-expected ACCEPT / ABSTAIN
-rank threshold
-schema validity
-artifact invariant
+SQLiteMemoryStore
+    |
+    v
+SQLiteFTSRetrieval
+    |
+    v
+LexicalRetrievalAcceptanceGate
+    |
+    v
+RetrievalEvaluator
 ```
 
-These are preferred because they are:
+A real labeled suite validated:
+
+- expected ACCEPT behavior;
+- expected ABSTAIN behavior;
+- expected memory recall;
+- top-1 correctness;
+- scope isolation;
+- repeated-run determinism.
+
+Result:
+
+```text
+suite: m8-retrieval-v0
+cases: 4
+pass: 4
+fail: 0
+error: 0
+deterministic_reproducibility: true
+```
+
+### Tool capability evaluation
+
+A second evaluator exercised the existing tool boundary and the real
+`DiagnosticEchoTool`.
+
+It validated:
+
+- successful invocation;
+- expected output values;
+- run_id preservation;
+- tool-name preservation;
+- expected validation failure;
+- repeated-run determinism.
+
+Result:
+
+```text
+suite: m8-tool-v0
+cases: 3
+pass: 3
+fail: 0
+error: 0
+deterministic_reproducibility: true
+```
+
+The second capability reused the same evaluation core without redesign.
+
+That is the primary evidence that the abstraction is not retrieval-specific.
+
+## Provider and subsystem independence
+
+The evaluation core must not depend structurally on:
+
+- OpenAI;
+- OpenRouter;
+- local inference;
+- DSH;
+- MCP;
+- SQLite;
+- a specific runtime;
+- a specific tool implementation;
+- a specific retrieval backend;
+- a specific evaluation SaaS.
+
+Capability-specific evaluators may depend on the contracts required to evaluate
+their target.
+
+Those dependencies must remain outside the generic evaluation core.
+
+## Deterministic evaluation first
+
+Deterministic code-based evaluators are the accepted default for workloads where
+expected behavior can be expressed without subjective judgment.
+
+Examples include:
+
+- exact outcome matching;
+- expected ACCEPT / ABSTAIN;
+- expected memory presence;
+- rank correctness;
+- schema validity;
+- expected tool success;
+- expected tool failure;
+- output invariants;
+- runtime contract invariants.
+
+This approach is preferred because it is:
 
 - reproducible;
 - explainable;
 - inexpensive;
+- fast;
 - independent from another model provider.
 
-## Retrieval evals
+## Workload-specific metrics
 
-The first supported evaluation family should measure retrieval behavior.
+Metrics belong to the evaluation workload.
 
-Candidate metrics include:
+Examples already demonstrated include:
 
-- recall@k;
-- precision@k;
-- top-1 correctness;
-- ACCEPT correctness;
-- ABSTAIN correctness;
-- false-positive recalls;
-- false-negative recalls;
-- deterministic reproducibility;
-- latency.
+### Retrieval
 
-Metric selection must remain workload-specific.
+- decision match;
+- hit count;
+- expected-memory recall@k;
+- top-1 correctness.
 
-The platform must not pretend that one aggregate score captures all retrieval
-quality.
+### Tool capability
 
-## Agent and trajectory evals
+- invocation success;
+- run_id match;
+- tool-name match;
+- output match;
+- expected-error match.
 
-Agent / trajectory evaluation is a later extension.
+The platform must not collapse these into a universal aggregate quality score
+without evidence that such a score is useful and valid.
 
-Potential future evaluations include:
+## Evaluation data
 
-- task completed;
-- required tools used;
-- forbidden tools not used;
-- retry count;
-- successful verification;
-- acceptance criteria satisfied;
-- budget respected.
+Evaluation cases may be stored as version-controlled data.
 
-These do not enter M8 V0 automatically.
+The accepted V0 uses JSON datasets for deterministic suites.
 
-## LLM-as-Judge
+This makes cases:
 
-LLM-as-Judge is explicitly deferred.
+- reviewable;
+- repeatable;
+- diffable;
+- reusable across runs.
 
-It may be evaluated later for outputs that cannot be judged deterministically.
+A dedicated evaluation database is not required.
 
-If introduced, it must remain behind an evaluator/provider boundary and must be
-measured against:
+## Evaluation artifacts
 
-- deterministic alternatives;
-- human-labeled cases;
-- consistency;
-- cost;
-- latency;
-- judge-model sensitivity.
+Evaluation results may be:
 
-LLM-as-Judge must not become a hidden authority over architectural promotion.
+- returned in memory;
+- serialized as JSON;
+- persisted as experiment artifacts;
+- summarized as Markdown evidence.
 
-## Benchmarking relationship
-
-Evaluation measures a target.
-
-Benchmarking compares targets.
-
-Conceptually:
+The accepted M8 evidence includes:
 
 ```text
-Baseline
-   |
-   v
-Eval Suite
-   |
-   v
-Baseline Results
-
-Candidate
-   |
-   v
-Same Eval Suite
-   |
-   v
-Candidate Results
-
-Baseline Results
-        |
-        +----> Comparison ----> Evidence
-        |
-Candidate Results
+docs/evidence/artifacts/m8-retrieval-v0.json
+docs/evidence/artifacts/m8-tool-v0.json
+docs/evidence/m8-eval-experiment-results.md
 ```
 
-Comparison must use predefined success metrics and guardrails.
+## Relationship to Evidence-Gated Architecture
 
-A candidate is not accepted merely because one metric improves.
+The Evaluation Plane operationalizes part of ADR-0002.
 
-## Promotion relationship
-
-If M8 is accepted, the intended architecture workflow becomes:
+The intended workflow is:
 
 ```text
 CHANGE
@@ -350,172 +337,231 @@ EVIDENCE
   +--> REJECT / DEFER
 ```
 
-Promotion remains a policy / human-governance concern.
+Evaluation produces evidence.
 
-The Eval Plane supplies evidence.
+Promotion remains an explicit architecture / policy decision.
 
-It does not own architectural authority.
+An evaluator must never silently promote a candidate into production.
 
-## Provider independence
+## Relationship to benchmarking
 
-The Evaluation Plane must not depend structurally on:
+Evaluation measures a target.
 
-- OpenAI;
-- OpenRouter;
-- local inference;
-- DSH;
-- MCP;
-- SQLite;
-- a specific eval SaaS;
-- a specific orchestration framework.
+Benchmarking compares targets.
 
-Adapters may integrate external evaluation providers later if evidence requires
-them.
+A future baseline-vs-candidate workflow may run the same evaluation suite against
+multiple implementations and compare the resulting evidence.
 
-## Persistence
+M8 does not introduce a generic comparison abstraction because no concrete
+candidate comparison required one.
 
-M8 V0 does not require a dedicated evaluation database.
+Any future comparison layer must earn its place independently.
 
-Evaluation results may initially be:
+## Relationship to observability
 
-- returned in memory;
-- serialized as JSON;
-- written as experiment artifacts;
-- committed as Markdown evidence when appropriate.
+Evaluation execution may emit normal platform observability such as:
 
-A persistent eval store is deferred until a requirement demonstrates that it is
-necessary.
-
-## Observability
-
-Evaluation execution itself may emit normal platform observability:
-
-- eval run started;
-- eval run completed;
-- eval run failed;
+- evaluation started;
+- evaluation completed;
+- evaluation failed;
+- evaluator identity;
 - case count;
-- duration;
-- evaluator identifier.
+- duration.
 
-Sensitive evaluated content should not be copied into logs or metrics by
-default.
+Evaluation results and observability remain distinct.
 
-Evaluation results and observability remain separate.
+Sensitive evaluated inputs or outputs must not be copied into default telemetry
+without a justified requirement.
 
-## Success criteria
+## Relationship to tests
 
-The Evaluation Plane may be accepted only if the M8 experiment proves:
+Evaluation does not replace tests.
 
-1. evaluation cases can be represented as reusable data;
-2. deterministic evaluators produce structured reproducible results;
-3. the same runner can execute multiple cases without bespoke orchestration;
-4. retrieval evaluation can measure accepted M7 behavior;
-5. negative / abstention behavior can be evaluated explicitly;
-6. the evaluation abstraction does not leak SQLite or retrieval implementation
-   details into core contracts;
-7. the mechanism reduces manual experiment work;
-8. a second evaluation type can reuse the same core abstractions without
-   redesign;
-9. no persistent control plane or external eval framework is required for V0;
-10. results can support baseline-vs-candidate evidence later.
+Tests verify software invariants.
+
+Eval suites represent reusable labeled capability expectations and produce
+structured evidence.
+
+Some overlap in low-level assertions is acceptable when it supports different
+purposes, but duplication must remain justified.
+
+## Error semantics
+
+V0 distinguishes:
+
+```text
+FAIL
+```
+
+The evaluator executed correctly, but observed behavior did not satisfy the
+expected behavior.
+
+```text
+ERROR
+```
+
+The evaluation itself could not be completed correctly, for example because of
+invalid case data or evaluator failure.
+
+This distinction is part of the accepted evaluation contract.
 
 ## Guardrails
 
-M8 must not:
+The Evaluation Plane must not:
 
 - replace unit tests;
 - replace observability;
-- turn evaluation into runtime authorization;
-- auto-promote architecture changes;
+- become runtime authorization;
+- automatically select architecture;
+- automatically mutate production configuration;
+- automatically promote candidates;
 - require LLM-as-Judge for deterministic workloads;
-- introduce a mandatory external eval provider;
-- add a dedicated eval database without evidence;
-- couple evaluation contracts to a specific model, runtime, tool or retrieval
-  backend;
-- expose sensitive prompts, memory content, tool arguments or model outputs in
-  default telemetry.
+- require a mandatory external evaluation provider;
+- require a dedicated evaluation database without evidence;
+- expose sensitive prompts, memory content, tool arguments, or model outputs in
+  default telemetry;
+- couple the generic evaluation domain to a specific model, runtime, tool,
+  retrieval backend, or provider.
 
-## Alternatives
+## LLM-as-Judge
 
-### Keep the current manual process
+LLM-as-Judge remains explicitly deferred.
 
-This remains the baseline.
+It may be evaluated later for outputs that cannot be judged deterministically.
 
-It is acceptable if the M8 experiment does not demonstrate enough value.
+If introduced, it must remain behind an evaluator/provider boundary and must
+itself be evaluated for:
 
-### Adopt an external eval framework immediately
+- agreement with deterministic or human labels;
+- consistency;
+- cost;
+- latency;
+- judge-model sensitivity;
+- failure modes.
 
-Deferred.
+LLM-as-Judge must never become a hidden authority over architectural promotion.
 
-Examples may include general-purpose LLM evaluation frameworks or hosted eval
-platforms.
+## Persistent evaluation infrastructure
 
-No requirement currently proves that the platform needs one.
+A persistent evaluation service or dedicated eval database is not part of V0.
 
-### Implement a minimal internal Eval Runner
+The current evidence demonstrates sufficient value using:
 
-Proposed experiment.
+```text
+plain Python
++ Pydantic
++ existing platform contracts
++ deterministic evaluators
++ version-controlled datasets
++ JSON artifacts
+```
 
-This is the smallest candidate capable of testing whether reusable Eval-as-Code
-provides measurable value.
+Persistent infrastructure may be reconsidered only when a concrete requirement
+demonstrates that the current approach is insufficient.
 
-## Consequences if accepted
+## Agent and trajectory evaluation
+
+Agent and trajectory evaluation is a future extension.
+
+Potential future cases include:
+
+- task completed;
+- required tools used;
+- forbidden tools not used;
+- retry count within budget;
+- verification succeeded;
+- acceptance criteria satisfied;
+- resource or token budget respected.
+
+These capabilities are not automatically accepted by this ADR.
+
+They must be introduced incrementally and remain evidence-gated.
+
+## Consequences
 
 ### Positive
 
-- architecture experiments become more reproducible;
 - evaluation cases become reusable;
-- baseline and candidate comparisons become easier;
-- quality evidence becomes machine-readable;
-- retrieval, model, tool and agent experiments can converge on shared
-  evaluation concepts;
-- ADR-0002 becomes easier to operationalize.
+- evidence becomes machine-readable;
+- repeated experiments become easier to reproduce;
+- capability quality can be checked separately from implementation tests;
+- future baseline/candidate comparisons can reuse structured results;
+- multiple platform capabilities can converge on shared evaluation concepts;
+- ADR-0002 gains an executable evidence mechanism.
 
 ### Negative
 
-- a new platform abstraction is introduced;
+- the platform now owns an additional abstraction;
 - evaluation contracts require maintenance;
-- poor metric design can create false confidence;
-- evaluation suites can become stale;
-- future LLM-based evaluators may introduce cost and nondeterminism.
+- poor labels or metrics can create false confidence;
+- evaluation datasets can become stale;
+- future subjective evaluators may introduce cost and nondeterminism.
 
-## Experiment
+These costs are accepted because the M8 experiment demonstrated concrete reuse
+across independent capabilities with a small implementation.
 
-This ADR remains **Proposed** until the experiment defined in:
+## Evidence
+
+The acceptance decision is grounded in:
 
 ```text
 docs/evidence/m8-eval-experiment-plan.md
+docs/evidence/m8-eval-experiment-results.md
+docs/evidence/artifacts/m8-retrieval-v0.json
+docs/evidence/artifacts/m8-tool-v0.json
 ```
 
-is completed.
-
-The experiment must produce:
+Evaluated revision:
 
 ```text
-docs/evidence/m8-eval-experiment-results.md
+8e8051e465a9feafaf57f01d644466b989963961
 ```
 
-## Decision rule
+Aggregate result:
 
-After the experiment:
+```text
+7 cases
+7 PASS
+0 FAIL
+0 ERROR
+2 / 2 deterministic suites
+```
 
-- **Accepted** if the evaluation abstraction demonstrates reusable and
-  reproducible value;
-- **Deferred** if useful but not yet justified as a platform plane;
-- **Rejected** if it mainly duplicates tests or manual evidence without enough
-  benefit.
+## Explicitly deferred
 
-Until then, the current documentation-first evidence process remains the
-accepted baseline.
+This ADR does not accept the following as required architecture:
+
+- LLM-as-Judge;
+- external eval frameworks or SaaS;
+- persistent eval service;
+- dedicated eval database;
+- distributed evaluation workers;
+- generic comparison engine;
+- universal quality score;
+- agent trajectory scoring;
+- human preference collection;
+- automatic promotion;
+- evaluation dashboard UI.
 
 ## Re-evaluation triggers
 
-Even if the initial proposal is Deferred or Rejected, evaluation infrastructure
-may be reconsidered when:
+The Evaluation Plane should be revisited when:
 
-- repeated experiments duplicate the same evaluation logic;
-- retrieval candidates require standardized comparison;
-- multiple model providers require task-quality comparison;
+- model/provider comparisons require task-quality evidence;
+- retrieval candidates require standardized baseline comparison;
 - sandbox/runtime candidates require semantic-invariance evaluation;
-- agent trajectories require repeatable acceptance measurement;
-- manual evidence interpretation becomes a material bottleneck.
+- agent trajectories require repeatable task-success measurement;
+- evaluation datasets become large enough to require dedicated storage;
+- subjective outputs create a justified need for human or LLM-based judges;
+- manual interpretation of evaluation artifacts becomes a material bottleneck.
+
+## Final decision
+
+The Evaluation Plane has demonstrated enough reusable and reproducible value to
+earn a place in the Agent Platform architecture.
+
+ADR-0006 is therefore **Accepted**.
+
+The governing rule remains unchanged:
+
+> Complexity must earn its place.
