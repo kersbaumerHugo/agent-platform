@@ -1,0 +1,1053 @@
+{
+  "case_count": 8,
+  "deterministic_reproducibility": true,
+  "duration_seconds": 0.03773390100104734,
+  "results": [
+    {
+      "case_id": "linkedin-homelab",
+      "evaluator": "context_preparation",
+      "metadata": {
+        "accepted_source_ids": [
+          "11111111-1111-1111-1111-111111111111",
+          "22222222-2222-2222-2222-222222222222",
+          "33333333-3333-3333-3333-333333333333"
+        ],
+        "actual_bundle_contexts": [
+          {
+            "namespace": "global",
+            "role": "shared"
+          },
+          {
+            "namespace": "app:linkedin",
+            "role": "delivery"
+          },
+          {
+            "namespace": "project:homelab",
+            "role": "subject"
+          }
+        ],
+        "actual_planned_contexts": [
+          {
+            "namespace": "global",
+            "role": "shared"
+          },
+          {
+            "namespace": "app:linkedin",
+            "role": "delivery"
+          },
+          {
+            "namespace": "project:homelab",
+            "role": "subject"
+          }
+        ],
+        "budget_tokens": 100,
+        "context_message_count": 1,
+        "context_message_role": "user",
+        "dropped_item_ids": [],
+        "estimated_tokens": 25,
+        "model_name": null,
+        "model_provider": null,
+        "provider_decisions": [
+          "accept",
+          "accept",
+          "accept"
+        ],
+        "provider_order_invariant": true,
+        "provider_reason_codes": [
+          "lexical_evidence",
+          "lexical_evidence",
+          "lexical_evidence"
+        ],
+        "rendered_context_hash": "sha256:aaf2b8872005f8287062b89e7f446909cfcbc86ae13f0b8a369cdfff201477ae",
+        "rendered_hash_order_invariant": true,
+        "retained_item_ids": [
+          "memory:11111111-1111-1111-1111-111111111111",
+          "memory:22222222-2222-2222-2222-222222222222",
+          "memory:33333333-3333-3333-3333-333333333333"
+        ],
+        "system_message_count": 1,
+        "trace": {
+          "assembler_version": "v0",
+          "budget": {
+            "budget_tokens": 100,
+            "dropped_item_ids": [],
+            "estimated_tokens": 25,
+            "estimator_version": "utf8-bytes-v0",
+            "policy_version": "canonical-prefix-v0"
+          },
+          "injection": {
+            "injector": "reference-message",
+            "version": "v0"
+          },
+          "planner": "deterministic",
+          "planner_version": "v0",
+          "provider_traces": [
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:361d933403534d268c08b62969e06b80bd1cab71fec0e792c6e608b1d34baf4e",
+                  "source_id": "11111111-1111-1111-1111-111111111111"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "global",
+                "role": "shared"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "000:shared:global"
+            },
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:2cc530f4215bf99de22fad7dcd129422ac4d3c2d243c32428b3f1f14d553c517",
+                  "source_id": "22222222-2222-2222-2222-222222222222"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "app:linkedin",
+                "role": "delivery"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "001:delivery:app:linkedin"
+            },
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:c15dbb336d524c25c2120b996e306270747a824cd8f4b80aa44c00cc88246c04",
+                  "source_id": "33333333-3333-3333-3333-333333333333"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "project:homelab",
+                "role": "subject"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "002:subject:project:homelab"
+            }
+          ],
+          "rendering": {
+            "content_hash": "sha256:aaf2b8872005f8287062b89e7f446909cfcbc86ae13f0b8a369cdfff201477ae",
+            "renderer": "markdown",
+            "version": "v0"
+          },
+          "version": "v0"
+        }
+      },
+      "metrics": {
+        "accepted_source_ids_match": 1.0,
+        "budget_within_limit": 1.0,
+        "bundle_contexts_match": 1.0,
+        "context_message_count_match": 1.0,
+        "context_message_role_match": 1.0,
+        "dropped_item_ids_match": 1.0,
+        "model_call_match": 1.0,
+        "model_identity_match": 1.0,
+        "planned_contexts_match": 1.0,
+        "provider_decisions_match": 1.0,
+        "provider_order_invariant": 1.0,
+        "provider_reason_codes_match": 1.0,
+        "rendered_empty_match": 1.0,
+        "rendered_hash_order_invariant": 1.0,
+        "retained_item_ids_match": 1.0,
+        "system_messages_unchanged": 1.0,
+        "trace_consistent": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "linkedin-agent-platform",
+      "evaluator": "context_preparation",
+      "metadata": {
+        "accepted_source_ids": [
+          "11111111-1111-1111-1111-111111111111",
+          "22222222-2222-2222-2222-222222222222",
+          "44444444-4444-4444-4444-444444444444"
+        ],
+        "actual_bundle_contexts": [
+          {
+            "namespace": "global",
+            "role": "shared"
+          },
+          {
+            "namespace": "app:linkedin",
+            "role": "delivery"
+          },
+          {
+            "namespace": "project:agent-platform",
+            "role": "subject"
+          }
+        ],
+        "actual_planned_contexts": [
+          {
+            "namespace": "global",
+            "role": "shared"
+          },
+          {
+            "namespace": "app:linkedin",
+            "role": "delivery"
+          },
+          {
+            "namespace": "project:agent-platform",
+            "role": "subject"
+          }
+        ],
+        "budget_tokens": 100,
+        "context_message_count": 1,
+        "context_message_role": "user",
+        "dropped_item_ids": [],
+        "estimated_tokens": 27,
+        "model_name": null,
+        "model_provider": null,
+        "provider_decisions": [
+          "accept",
+          "accept",
+          "accept"
+        ],
+        "provider_order_invariant": true,
+        "provider_reason_codes": [
+          "lexical_evidence",
+          "lexical_evidence",
+          "lexical_evidence"
+        ],
+        "rendered_context_hash": "sha256:10672dfbdae3c40b883f5c3343e4e1a23f50f4da9e2693acd99443bcea7a9cdf",
+        "rendered_hash_order_invariant": true,
+        "retained_item_ids": [
+          "memory:11111111-1111-1111-1111-111111111111",
+          "memory:22222222-2222-2222-2222-222222222222",
+          "memory:44444444-4444-4444-4444-444444444444"
+        ],
+        "system_message_count": 1,
+        "trace": {
+          "assembler_version": "v0",
+          "budget": {
+            "budget_tokens": 100,
+            "dropped_item_ids": [],
+            "estimated_tokens": 27,
+            "estimator_version": "utf8-bytes-v0",
+            "policy_version": "canonical-prefix-v0"
+          },
+          "injection": {
+            "injector": "reference-message",
+            "version": "v0"
+          },
+          "planner": "deterministic",
+          "planner_version": "v0",
+          "provider_traces": [
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:361d933403534d268c08b62969e06b80bd1cab71fec0e792c6e608b1d34baf4e",
+                  "source_id": "11111111-1111-1111-1111-111111111111"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "global",
+                "role": "shared"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "000:shared:global"
+            },
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:2cc530f4215bf99de22fad7dcd129422ac4d3c2d243c32428b3f1f14d553c517",
+                  "source_id": "22222222-2222-2222-2222-222222222222"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "app:linkedin",
+                "role": "delivery"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "001:delivery:app:linkedin"
+            },
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:61f227d5cef685699b78cc1381b8ed21a5f1e4e1667f5c2f4dd703ad4c21e75f",
+                  "source_id": "44444444-4444-4444-4444-444444444444"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "project:agent-platform",
+                "role": "subject"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "002:subject:project:agent-platform"
+            }
+          ],
+          "rendering": {
+            "content_hash": "sha256:10672dfbdae3c40b883f5c3343e4e1a23f50f4da9e2693acd99443bcea7a9cdf",
+            "renderer": "markdown",
+            "version": "v0"
+          },
+          "version": "v0"
+        }
+      },
+      "metrics": {
+        "accepted_source_ids_match": 1.0,
+        "budget_within_limit": 1.0,
+        "bundle_contexts_match": 1.0,
+        "context_message_count_match": 1.0,
+        "context_message_role_match": 1.0,
+        "dropped_item_ids_match": 1.0,
+        "model_call_match": 1.0,
+        "model_identity_match": 1.0,
+        "planned_contexts_match": 1.0,
+        "provider_decisions_match": 1.0,
+        "provider_order_invariant": 1.0,
+        "provider_reason_codes_match": 1.0,
+        "rendered_empty_match": 1.0,
+        "rendered_hash_order_invariant": 1.0,
+        "retained_item_ids_match": 1.0,
+        "system_messages_unchanged": 1.0,
+        "trace_consistent": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "abstain-on-no-evidence",
+      "evaluator": "context_preparation",
+      "metadata": {
+        "accepted_source_ids": [],
+        "actual_bundle_contexts": [],
+        "actual_planned_contexts": [
+          {
+            "namespace": "app:linkedin",
+            "role": "delivery"
+          }
+        ],
+        "budget_tokens": 100,
+        "context_message_count": 0,
+        "context_message_role": null,
+        "dropped_item_ids": [],
+        "estimated_tokens": 0,
+        "model_name": null,
+        "model_provider": null,
+        "provider_decisions": [
+          "abstain"
+        ],
+        "provider_order_invariant": true,
+        "provider_reason_codes": [
+          "no_hits"
+        ],
+        "rendered_context_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rendered_hash_order_invariant": true,
+        "retained_item_ids": [],
+        "system_message_count": 1,
+        "trace": {
+          "assembler_version": "v0",
+          "budget": {
+            "budget_tokens": 100,
+            "dropped_item_ids": [],
+            "estimated_tokens": 0,
+            "estimator_version": "utf8-bytes-v0",
+            "policy_version": "canonical-prefix-v0"
+          },
+          "injection": {
+            "injector": "reference-message",
+            "version": "v0"
+          },
+          "planner": "deterministic",
+          "planner_version": "v0",
+          "provider_traces": [
+            {
+              "accepted_count": 0,
+              "accepted_sources": [],
+              "candidate_count": 0,
+              "context": {
+                "namespace": "app:linkedin",
+                "role": "delivery"
+              },
+              "decision": "abstain",
+              "provider": "memory",
+              "reason_code": "no_hits",
+              "rejected_count": 0,
+              "request_id": "000:delivery:app:linkedin"
+            }
+          ],
+          "rendering": {
+            "content_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "renderer": "markdown",
+            "version": "v0"
+          },
+          "version": "v0"
+        }
+      },
+      "metrics": {
+        "accepted_source_ids_match": 1.0,
+        "budget_within_limit": 1.0,
+        "bundle_contexts_match": 1.0,
+        "context_message_count_match": 1.0,
+        "context_message_role_match": 1.0,
+        "dropped_item_ids_match": 1.0,
+        "model_call_match": 1.0,
+        "model_identity_match": 1.0,
+        "planned_contexts_match": 1.0,
+        "provider_decisions_match": 1.0,
+        "provider_order_invariant": 1.0,
+        "provider_reason_codes_match": 1.0,
+        "rendered_empty_match": 1.0,
+        "rendered_hash_order_invariant": 1.0,
+        "retained_item_ids_match": 1.0,
+        "system_messages_unchanged": 1.0,
+        "trace_consistent": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "no-selected-context",
+      "evaluator": "context_preparation",
+      "metadata": {
+        "accepted_source_ids": [],
+        "actual_bundle_contexts": [],
+        "actual_planned_contexts": [],
+        "budget_tokens": 100,
+        "context_message_count": 0,
+        "context_message_role": null,
+        "dropped_item_ids": [],
+        "estimated_tokens": 0,
+        "model_name": null,
+        "model_provider": null,
+        "provider_decisions": [],
+        "provider_order_invariant": true,
+        "provider_reason_codes": [],
+        "rendered_context_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rendered_hash_order_invariant": true,
+        "retained_item_ids": [],
+        "system_message_count": 1,
+        "trace": {
+          "assembler_version": "v0",
+          "budget": {
+            "budget_tokens": 100,
+            "dropped_item_ids": [],
+            "estimated_tokens": 0,
+            "estimator_version": "utf8-bytes-v0",
+            "policy_version": "canonical-prefix-v0"
+          },
+          "injection": {
+            "injector": "reference-message",
+            "version": "v0"
+          },
+          "planner": "deterministic",
+          "planner_version": "v0",
+          "provider_traces": [],
+          "rendering": {
+            "content_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "renderer": "markdown",
+            "version": "v0"
+          },
+          "version": "v0"
+        }
+      },
+      "metrics": {
+        "accepted_source_ids_match": 1.0,
+        "budget_within_limit": 1.0,
+        "bundle_contexts_match": 1.0,
+        "context_message_count_match": 1.0,
+        "context_message_role_match": 1.0,
+        "dropped_item_ids_match": 1.0,
+        "model_call_match": 1.0,
+        "model_identity_match": 1.0,
+        "planned_contexts_match": 1.0,
+        "provider_decisions_match": 1.0,
+        "provider_order_invariant": 1.0,
+        "provider_reason_codes_match": 1.0,
+        "rendered_empty_match": 1.0,
+        "rendered_hash_order_invariant": 1.0,
+        "retained_item_ids_match": 1.0,
+        "system_messages_unchanged": 1.0,
+        "trace_consistent": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "provider-order-invariance",
+      "evaluator": "context_preparation",
+      "metadata": {
+        "accepted_source_ids": [
+          "11111111-1111-1111-1111-111111111111",
+          "22222222-2222-2222-2222-222222222222",
+          "33333333-3333-3333-3333-333333333333"
+        ],
+        "actual_bundle_contexts": [
+          {
+            "namespace": "global",
+            "role": "shared"
+          },
+          {
+            "namespace": "app:linkedin",
+            "role": "delivery"
+          },
+          {
+            "namespace": "project:homelab",
+            "role": "subject"
+          }
+        ],
+        "actual_planned_contexts": [
+          {
+            "namespace": "global",
+            "role": "shared"
+          },
+          {
+            "namespace": "app:linkedin",
+            "role": "delivery"
+          },
+          {
+            "namespace": "project:homelab",
+            "role": "subject"
+          }
+        ],
+        "budget_tokens": 100,
+        "context_message_count": 1,
+        "context_message_role": "user",
+        "dropped_item_ids": [],
+        "estimated_tokens": 25,
+        "model_name": null,
+        "model_provider": null,
+        "provider_decisions": [
+          "accept",
+          "accept",
+          "accept"
+        ],
+        "provider_order_invariant": true,
+        "provider_reason_codes": [
+          "lexical_evidence",
+          "lexical_evidence",
+          "lexical_evidence"
+        ],
+        "rendered_context_hash": "sha256:aaf2b8872005f8287062b89e7f446909cfcbc86ae13f0b8a369cdfff201477ae",
+        "rendered_hash_order_invariant": true,
+        "retained_item_ids": [
+          "memory:11111111-1111-1111-1111-111111111111",
+          "memory:22222222-2222-2222-2222-222222222222",
+          "memory:33333333-3333-3333-3333-333333333333"
+        ],
+        "system_message_count": 1,
+        "trace": {
+          "assembler_version": "v0",
+          "budget": {
+            "budget_tokens": 100,
+            "dropped_item_ids": [],
+            "estimated_tokens": 25,
+            "estimator_version": "utf8-bytes-v0",
+            "policy_version": "canonical-prefix-v0"
+          },
+          "injection": {
+            "injector": "reference-message",
+            "version": "v0"
+          },
+          "planner": "deterministic",
+          "planner_version": "v0",
+          "provider_traces": [
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:361d933403534d268c08b62969e06b80bd1cab71fec0e792c6e608b1d34baf4e",
+                  "source_id": "11111111-1111-1111-1111-111111111111"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "global",
+                "role": "shared"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "000:shared:global"
+            },
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:2cc530f4215bf99de22fad7dcd129422ac4d3c2d243c32428b3f1f14d553c517",
+                  "source_id": "22222222-2222-2222-2222-222222222222"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "app:linkedin",
+                "role": "delivery"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "001:delivery:app:linkedin"
+            },
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:c15dbb336d524c25c2120b996e306270747a824cd8f4b80aa44c00cc88246c04",
+                  "source_id": "33333333-3333-3333-3333-333333333333"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "project:homelab",
+                "role": "subject"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "002:subject:project:homelab"
+            }
+          ],
+          "rendering": {
+            "content_hash": "sha256:aaf2b8872005f8287062b89e7f446909cfcbc86ae13f0b8a369cdfff201477ae",
+            "renderer": "markdown",
+            "version": "v0"
+          },
+          "version": "v0"
+        }
+      },
+      "metrics": {
+        "accepted_source_ids_match": 1.0,
+        "budget_within_limit": 1.0,
+        "bundle_contexts_match": 1.0,
+        "context_message_count_match": 1.0,
+        "context_message_role_match": 1.0,
+        "dropped_item_ids_match": 1.0,
+        "model_call_match": 1.0,
+        "model_identity_match": 1.0,
+        "planned_contexts_match": 1.0,
+        "provider_decisions_match": 1.0,
+        "provider_order_invariant": 1.0,
+        "provider_reason_codes_match": 1.0,
+        "rendered_empty_match": 1.0,
+        "rendered_hash_order_invariant": 1.0,
+        "retained_item_ids_match": 1.0,
+        "system_messages_unchanged": 1.0,
+        "trace_consistent": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "budget-pressure",
+      "evaluator": "context_preparation",
+      "metadata": {
+        "accepted_source_ids": [
+          "11111111-1111-1111-1111-111111111111",
+          "22222222-2222-2222-2222-222222222222",
+          "33333333-3333-3333-3333-333333333333"
+        ],
+        "actual_bundle_contexts": [
+          {
+            "namespace": "global",
+            "role": "shared"
+          },
+          {
+            "namespace": "app:linkedin",
+            "role": "delivery"
+          },
+          {
+            "namespace": "project:homelab",
+            "role": "subject"
+          }
+        ],
+        "actual_planned_contexts": [
+          {
+            "namespace": "global",
+            "role": "shared"
+          },
+          {
+            "namespace": "app:linkedin",
+            "role": "delivery"
+          },
+          {
+            "namespace": "project:homelab",
+            "role": "subject"
+          }
+        ],
+        "budget_tokens": 12,
+        "context_message_count": 1,
+        "context_message_role": "user",
+        "dropped_item_ids": [
+          "memory:22222222-2222-2222-2222-222222222222",
+          "memory:33333333-3333-3333-3333-333333333333"
+        ],
+        "estimated_tokens": 8,
+        "model_name": null,
+        "model_provider": null,
+        "provider_decisions": [
+          "accept",
+          "accept",
+          "accept"
+        ],
+        "provider_order_invariant": true,
+        "provider_reason_codes": [
+          "lexical_evidence",
+          "lexical_evidence",
+          "lexical_evidence"
+        ],
+        "rendered_context_hash": "sha256:d8e5b68c4eb64cf3939ffeee5a95355450e04d6c05729c998bb337849a7de9e4",
+        "rendered_hash_order_invariant": true,
+        "retained_item_ids": [
+          "memory:11111111-1111-1111-1111-111111111111"
+        ],
+        "system_message_count": 1,
+        "trace": {
+          "assembler_version": "v0",
+          "budget": {
+            "budget_tokens": 12,
+            "dropped_item_ids": [
+              "memory:22222222-2222-2222-2222-222222222222",
+              "memory:33333333-3333-3333-3333-333333333333"
+            ],
+            "estimated_tokens": 8,
+            "estimator_version": "utf8-bytes-v0",
+            "policy_version": "canonical-prefix-v0"
+          },
+          "injection": {
+            "injector": "reference-message",
+            "version": "v0"
+          },
+          "planner": "deterministic",
+          "planner_version": "v0",
+          "provider_traces": [
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:361d933403534d268c08b62969e06b80bd1cab71fec0e792c6e608b1d34baf4e",
+                  "source_id": "11111111-1111-1111-1111-111111111111"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "global",
+                "role": "shared"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "000:shared:global"
+            },
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:2cc530f4215bf99de22fad7dcd129422ac4d3c2d243c32428b3f1f14d553c517",
+                  "source_id": "22222222-2222-2222-2222-222222222222"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "app:linkedin",
+                "role": "delivery"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "001:delivery:app:linkedin"
+            },
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:c15dbb336d524c25c2120b996e306270747a824cd8f4b80aa44c00cc88246c04",
+                  "source_id": "33333333-3333-3333-3333-333333333333"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "project:homelab",
+                "role": "subject"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "002:subject:project:homelab"
+            }
+          ],
+          "rendering": {
+            "content_hash": "sha256:d8e5b68c4eb64cf3939ffeee5a95355450e04d6c05729c998bb337849a7de9e4",
+            "renderer": "markdown",
+            "version": "v0"
+          },
+          "version": "v0"
+        }
+      },
+      "metrics": {
+        "accepted_source_ids_match": 1.0,
+        "budget_within_limit": 1.0,
+        "bundle_contexts_match": 1.0,
+        "context_message_count_match": 1.0,
+        "context_message_role_match": 1.0,
+        "dropped_item_ids_match": 1.0,
+        "model_call_match": 1.0,
+        "model_identity_match": 1.0,
+        "planned_contexts_match": 1.0,
+        "provider_decisions_match": 1.0,
+        "provider_order_invariant": 1.0,
+        "provider_reason_codes_match": 1.0,
+        "rendered_empty_match": 1.0,
+        "rendered_hash_order_invariant": 1.0,
+        "retained_item_ids_match": 1.0,
+        "system_messages_unchanged": 1.0,
+        "trace_consistent": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "injection-privilege",
+      "evaluator": "context_preparation",
+      "metadata": {
+        "accepted_source_ids": [
+          "66666666-6666-6666-6666-666666666666"
+        ],
+        "actual_bundle_contexts": [
+          {
+            "namespace": "project:injection",
+            "role": "subject"
+          }
+        ],
+        "actual_planned_contexts": [
+          {
+            "namespace": "project:injection",
+            "role": "subject"
+          }
+        ],
+        "budget_tokens": 100,
+        "context_message_count": 1,
+        "context_message_role": "user",
+        "dropped_item_ids": [],
+        "estimated_tokens": 13,
+        "model_name": null,
+        "model_provider": null,
+        "provider_decisions": [
+          "accept"
+        ],
+        "provider_order_invariant": true,
+        "provider_reason_codes": [
+          "lexical_evidence"
+        ],
+        "rendered_context_hash": "sha256:6ecdd341e54a49f2a05ff8f31dced96e051a5e5e7ec2f3a386a7c46e2179a447",
+        "rendered_hash_order_invariant": true,
+        "retained_item_ids": [
+          "memory:66666666-6666-6666-6666-666666666666"
+        ],
+        "system_message_count": 1,
+        "trace": {
+          "assembler_version": "v0",
+          "budget": {
+            "budget_tokens": 100,
+            "dropped_item_ids": [],
+            "estimated_tokens": 13,
+            "estimator_version": "utf8-bytes-v0",
+            "policy_version": "canonical-prefix-v0"
+          },
+          "injection": {
+            "injector": "reference-message",
+            "version": "v0"
+          },
+          "planner": "deterministic",
+          "planner_version": "v0",
+          "provider_traces": [
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:70f60623f37bf4eb6ca8c3ef70665e530d824b560fc87ad7ab51e88c66ee9975",
+                  "source_id": "66666666-6666-6666-6666-666666666666"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "project:injection",
+                "role": "subject"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "000:subject:project:injection"
+            }
+          ],
+          "rendering": {
+            "content_hash": "sha256:6ecdd341e54a49f2a05ff8f31dced96e051a5e5e7ec2f3a386a7c46e2179a447",
+            "renderer": "markdown",
+            "version": "v0"
+          },
+          "version": "v0"
+        }
+      },
+      "metrics": {
+        "accepted_source_ids_match": 1.0,
+        "budget_within_limit": 1.0,
+        "bundle_contexts_match": 1.0,
+        "context_message_count_match": 1.0,
+        "context_message_role_match": 1.0,
+        "dropped_item_ids_match": 1.0,
+        "model_call_match": 1.0,
+        "model_identity_match": 1.0,
+        "planned_contexts_match": 1.0,
+        "provider_decisions_match": 1.0,
+        "provider_order_invariant": 1.0,
+        "provider_reason_codes_match": 1.0,
+        "rendered_empty_match": 1.0,
+        "rendered_hash_order_invariant": 1.0,
+        "retained_item_ids_match": 1.0,
+        "system_messages_unchanged": 1.0,
+        "trace_consistent": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "provider-model-independence",
+      "evaluator": "context_preparation",
+      "metadata": {
+        "accepted_source_ids": [
+          "77777777-7777-7777-7777-777777777777"
+        ],
+        "actual_bundle_contexts": [
+          {
+            "namespace": "project:model-independence",
+            "role": "subject"
+          }
+        ],
+        "actual_planned_contexts": [
+          {
+            "namespace": "project:model-independence",
+            "role": "subject"
+          }
+        ],
+        "budget_tokens": 112,
+        "context_message_count": 1,
+        "context_message_role": "user",
+        "dropped_item_ids": [],
+        "estimated_tokens": 11,
+        "model_name": "deterministic-v0",
+        "model_provider": "m10-eval",
+        "provider_decisions": [
+          "accept"
+        ],
+        "provider_order_invariant": true,
+        "provider_reason_codes": [
+          "lexical_evidence"
+        ],
+        "rendered_context_hash": "sha256:e4a970bb9da68b0693c5fb656211f01afebe0b772cc2574dbbd55cc10901d139",
+        "rendered_hash_order_invariant": true,
+        "retained_item_ids": [
+          "memory:77777777-7777-7777-7777-777777777777"
+        ],
+        "system_message_count": 1,
+        "trace": {
+          "assembler_version": "v0",
+          "budget": {
+            "budget_tokens": 112,
+            "dropped_item_ids": [],
+            "estimated_tokens": 11,
+            "estimator_version": "utf8-bytes-v0",
+            "policy_version": "canonical-prefix-v0"
+          },
+          "injection": {
+            "injector": "reference-message",
+            "version": "v0"
+          },
+          "planner": "deterministic",
+          "planner_version": "v0",
+          "provider_traces": [
+            {
+              "accepted_count": 1,
+              "accepted_sources": [
+                {
+                  "content_hash": "sha256:6e36708a237f1b14cb4fed5841019556186699cf2dc37ebe5c96ca56d2502ade",
+                  "source_id": "77777777-7777-7777-7777-777777777777"
+                }
+              ],
+              "candidate_count": 1,
+              "context": {
+                "namespace": "project:model-independence",
+                "role": "subject"
+              },
+              "decision": "accept",
+              "provider": "memory",
+              "reason_code": "lexical_evidence",
+              "rejected_count": 0,
+              "request_id": "000:subject:project:model-independence"
+            }
+          ],
+          "rendering": {
+            "content_hash": "sha256:e4a970bb9da68b0693c5fb656211f01afebe0b772cc2574dbbd55cc10901d139",
+            "renderer": "markdown",
+            "version": "v0"
+          },
+          "version": "v0"
+        }
+      },
+      "metrics": {
+        "accepted_source_ids_match": 1.0,
+        "budget_within_limit": 1.0,
+        "bundle_contexts_match": 1.0,
+        "context_message_count_match": 1.0,
+        "context_message_role_match": 1.0,
+        "dropped_item_ids_match": 1.0,
+        "model_call_match": 1.0,
+        "model_identity_match": 1.0,
+        "planned_contexts_match": 1.0,
+        "provider_decisions_match": 1.0,
+        "provider_order_invariant": 1.0,
+        "provider_reason_codes_match": 1.0,
+        "rendered_empty_match": 1.0,
+        "rendered_hash_order_invariant": 1.0,
+        "retained_item_ids_match": 1.0,
+        "system_messages_unchanged": 1.0,
+        "trace_consistent": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    }
+  ],
+  "suite_id": "m10-context-preparation-v0",
+  "summary": {
+    "error": 0,
+    "fail": 0,
+    "pass": 8
+  }
+}
