@@ -1,7 +1,8 @@
 # ADR-0008: Context Preparation and Injection V0
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-16
+- Accepted: 2026-09-16
 - Governing principle: ADR-0002 — Evidence-Gated Architecture
 - Related decisions:
   - ADR-0005 — Memory & Recall V0
@@ -774,19 +775,46 @@ Each must earn its place independently.
 
 ## Experiment
 
-This ADR remains **Proposed** until the experiment in:
+The experiment defined in:
 
 ```text
 docs/evidence/m10-context-preparation-experiment-plan.md
 ```
 
-is completed.
+was completed through M10.1–M10.11.
 
-Expected results should be recorded in:
+Results are recorded in:
 
 ```text
 docs/evidence/m10-context-preparation-experiment-results.md
 ```
+
+Machine-readable evidence is recorded in:
+
+```text
+docs/evidence/artifacts/m10-context-preparation-v0.json
+docs/evidence/artifacts/m10-context-preparation-smoke-v0.json
+```
+
+The accepted implementation/evidence baseline revision is:
+
+```text
+6e65e6741644b18810421d04af2b9d0e5adec4c5
+```
+
+## Decision
+
+**Accepted.**
+
+The experiment demonstrated that the source-neutral Context IR and plugable
+preparation/injection pipeline provide reusable deterministic value while
+preserving explicit context selection, source independence, provider/model
+independence, bounded context, privilege-safe injection, and reproducible
+operational evidence.
+
+The acceptance evidence also demonstrated that no external RAG framework,
+vector database, LLM planning/reranking/summarization layer, or dynamic plugin
+system is required for V0.
 
 ## Decision rule
 
