@@ -31,7 +31,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Compile source
-        run: python -m compileall -q src tests
+        run: python -m compileall -q src tests scripts
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -49,10 +49,10 @@ jobs:
         run: python -m pip install -e ".[dev]"
 
       - name: Ruff lint
-        run: ruff check src tests
+        run: ruff check src tests scripts
 
       - name: Ruff format
-        run: ruff format --check src tests
+        run: ruff format --check src tests scripts
 
   typecheck:
     name: Typecheck
@@ -90,7 +90,7 @@ jobs:
         run: python -m pip install -e ".[dev]"
 
       - name: Pytest
-        run: pytest -v
+        run: python -m pytest -v
 
   package:
     name: Package
