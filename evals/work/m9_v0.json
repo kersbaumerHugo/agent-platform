@@ -1,0 +1,158 @@
+{
+  "suite_id": "m9-work-v0",
+  "cases": [
+    {
+      "case_id": "ordered-success",
+      "input": {
+        "objective": "Draft, review, and finalize a LinkedIn post about the homelab.",
+        "contexts": [
+          {
+            "role": "shared",
+            "namespace": "global"
+          },
+          {
+            "role": "delivery",
+            "namespace": "app:linkedin"
+          },
+          {
+            "role": "subject",
+            "namespace": "project:homelab"
+          }
+        ],
+        "steps": [
+          {
+            "step_id": "draft",
+            "agent_id": "writer",
+            "input": "draft"
+          },
+          {
+            "step_id": "review",
+            "agent_id": "reviewer",
+            "input": "review"
+          },
+          {
+            "step_id": "finalize",
+            "agent_id": "writer",
+            "input": "finalize"
+          }
+        ]
+      },
+      "expected": {
+        "status": "succeeded",
+        "executed_step_ids": [
+          "draft",
+          "review",
+          "finalize"
+        ],
+        "run_statuses": [
+          "succeeded",
+          "succeeded",
+          "succeeded"
+        ],
+        "failed_step_id": null,
+        "contexts": [
+          {
+            "role": "shared",
+            "namespace": "global"
+          },
+          {
+            "role": "delivery",
+            "namespace": "app:linkedin"
+          },
+          {
+            "role": "subject",
+            "namespace": "project:homelab"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "stop-on-failure",
+      "input": {
+        "objective": "Stop execution after the first failed step.",
+        "contexts": [],
+        "steps": [
+          {
+            "step_id": "first",
+            "agent_id": "worker",
+            "input": "ok"
+          },
+          {
+            "step_id": "second",
+            "agent_id": "worker",
+            "input": "__FAIL__"
+          },
+          {
+            "step_id": "third",
+            "agent_id": "worker",
+            "input": "must-not-run"
+          }
+        ]
+      },
+      "expected": {
+        "status": "failed",
+        "executed_step_ids": [
+          "first",
+          "second"
+        ],
+        "run_statuses": [
+          "succeeded",
+          "failed"
+        ],
+        "failed_step_id": "second",
+        "contexts": []
+      }
+    },
+    {
+      "case_id": "subject-context-switch",
+      "input": {
+        "objective": "Draft a LinkedIn post about the Agent Platform.",
+        "contexts": [
+          {
+            "role": "shared",
+            "namespace": "global"
+          },
+          {
+            "role": "delivery",
+            "namespace": "app:linkedin"
+          },
+          {
+            "role": "subject",
+            "namespace": "project:agent-platform"
+          }
+        ],
+        "steps": [
+          {
+            "step_id": "draft",
+            "agent_id": "writer",
+            "input": "draft-agent-platform"
+          }
+        ]
+      },
+      "expected": {
+        "status": "succeeded",
+        "executed_step_ids": [
+          "draft"
+        ],
+        "run_statuses": [
+          "succeeded"
+        ],
+        "failed_step_id": null,
+        "contexts": [
+          {
+            "role": "shared",
+            "namespace": "global"
+          },
+          {
+            "role": "delivery",
+            "namespace": "app:linkedin"
+          },
+          {
+            "role": "subject",
+            "namespace": "project:agent-platform"
+          }
+        ]
+      }
+    }
+  ]
+}

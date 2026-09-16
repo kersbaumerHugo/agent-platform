@@ -1,0 +1,123 @@
+{
+  "case_count": 3,
+  "deterministic_reproducibility": true,
+  "duration_seconds": 0.0011875659693032503,
+  "results": [
+    {
+      "case_id": "ordered-success",
+      "evaluator": "work_orchestration",
+      "metadata": {
+        "actual_contexts": [
+          {
+            "namespace": "global",
+            "role": "shared"
+          },
+          {
+            "namespace": "app:linkedin",
+            "role": "delivery"
+          },
+          {
+            "namespace": "project:homelab",
+            "role": "subject"
+          }
+        ],
+        "actual_failed_step_id": null,
+        "actual_run_statuses": [
+          "succeeded",
+          "succeeded",
+          "succeeded"
+        ],
+        "actual_status": "succeeded",
+        "actual_step_ids": [
+          "draft",
+          "review",
+          "finalize"
+        ],
+        "expected_status": "succeeded"
+      },
+      "metrics": {
+        "contexts_match": 1.0,
+        "executed_step_count": 3.0,
+        "failed_step_match": 1.0,
+        "run_statuses_match": 1.0,
+        "status_match": 1.0,
+        "step_order_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "stop-on-failure",
+      "evaluator": "work_orchestration",
+      "metadata": {
+        "actual_contexts": [],
+        "actual_failed_step_id": "second",
+        "actual_run_statuses": [
+          "succeeded",
+          "failed"
+        ],
+        "actual_status": "failed",
+        "actual_step_ids": [
+          "first",
+          "second"
+        ],
+        "expected_status": "failed"
+      },
+      "metrics": {
+        "contexts_match": 1.0,
+        "executed_step_count": 2.0,
+        "failed_step_match": 1.0,
+        "run_statuses_match": 1.0,
+        "status_match": 1.0,
+        "step_order_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "subject-context-switch",
+      "evaluator": "work_orchestration",
+      "metadata": {
+        "actual_contexts": [
+          {
+            "namespace": "global",
+            "role": "shared"
+          },
+          {
+            "namespace": "app:linkedin",
+            "role": "delivery"
+          },
+          {
+            "namespace": "project:agent-platform",
+            "role": "subject"
+          }
+        ],
+        "actual_failed_step_id": null,
+        "actual_run_statuses": [
+          "succeeded"
+        ],
+        "actual_status": "succeeded",
+        "actual_step_ids": [
+          "draft"
+        ],
+        "expected_status": "succeeded"
+      },
+      "metrics": {
+        "contexts_match": 1.0,
+        "executed_step_count": 1.0,
+        "failed_step_match": 1.0,
+        "run_statuses_match": 1.0,
+        "status_match": 1.0,
+        "step_order_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    }
+  ],
+  "suite_id": "m9-work-v0",
+  "summary": {
+    "error": 0,
+    "fail": 0,
+    "pass": 3
+  }
+}
