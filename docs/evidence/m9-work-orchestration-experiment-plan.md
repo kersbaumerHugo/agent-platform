@@ -1,10 +1,12 @@
 # M9 Work API + Orchestrator V0 Experiment Plan
 
-- Status: Proposed experiment
+- Status: Completed
 - Date: 2026-09-16
 - Governing principle: ADR-0002 — Evidence-Gated Architecture
 - Related ADR: ADR-0007 — Work API and Deterministic Orchestrator V0
 - Related capability: ADR-0006 — Evaluation Plane / Eval-as-Code
+- Result: Accepted
+- Results: `docs/evidence/m9-work-orchestration-experiment-results.md`
 
 ## Objective
 
