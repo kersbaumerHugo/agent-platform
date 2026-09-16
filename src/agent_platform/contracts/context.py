@@ -11,6 +11,7 @@ from agent_platform.domain.context_preparation import (
     RecallPlan,
     RecallRequest,
 )
+from agent_platform.domain.context_rendering import RenderedContext
 
 
 class RecallPlannerContract(Protocol):
@@ -65,3 +66,16 @@ class ContextBudgetPolicyContract(Protocol):
         bundle: ContextBundle,
         budget: ContextBudget,
     ) -> BudgetedContextBundle: ...
+
+
+class ContextRendererContract(Protocol):
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def version(self) -> str: ...
+
+    def render(
+        self,
+        budgeted: BudgetedContextBundle,
+    ) -> RenderedContext: ...
