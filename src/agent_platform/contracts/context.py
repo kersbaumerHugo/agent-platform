@@ -12,6 +12,7 @@ from agent_platform.domain.context_preparation import (
     RecallRequest,
 )
 from agent_platform.domain.context_rendering import RenderedContext
+from agent_platform.domain.context_trace import ContextProviderResult
 from agent_platform.domain.model import ModelRequest
 
 
@@ -35,7 +36,7 @@ class ContextProviderContract(Protocol):
     async def provide(
         self,
         request: RecallRequest,
-    ) -> ContextContribution: ...
+    ) -> ContextProviderResult: ...
 
 
 class ContextAssemblerContract(Protocol):
