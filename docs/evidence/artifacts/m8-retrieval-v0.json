@@ -1,0 +1,77 @@
+{
+  "case_count": 4,
+  "deterministic_reproducibility": true,
+  "duration_seconds": 0.016699902014806867,
+  "results": [
+    {
+      "case_id": "relevant-local-inference",
+      "evaluator": "retrieval",
+      "metadata": {
+        "acceptance_reason_code": "lexical_evidence",
+        "actual_decision": "accept",
+        "expected_decision": "accept"
+      },
+      "metrics": {
+        "decision_match": 1.0,
+        "expected_memory_recall_at_k": 1.0,
+        "hit_count": 2.0,
+        "top_1_correct": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "relevant-memory-recall",
+      "evaluator": "retrieval",
+      "metadata": {
+        "acceptance_reason_code": "lexical_evidence",
+        "actual_decision": "accept",
+        "expected_decision": "accept"
+      },
+      "metrics": {
+        "decision_match": 1.0,
+        "expected_memory_recall_at_k": 1.0,
+        "hit_count": 1.0,
+        "top_1_correct": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "unrelated-query-abstains",
+      "evaluator": "retrieval",
+      "metadata": {
+        "acceptance_reason_code": "no_hits",
+        "actual_decision": "abstain",
+        "expected_decision": "abstain"
+      },
+      "metrics": {
+        "decision_match": 1.0,
+        "hit_count": 0.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "cross-scope-query-abstains",
+      "evaluator": "retrieval",
+      "metadata": {
+        "acceptance_reason_code": "no_hits",
+        "actual_decision": "abstain",
+        "expected_decision": "abstain"
+      },
+      "metrics": {
+        "decision_match": 1.0,
+        "hit_count": 0.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    }
+  ],
+  "suite_id": "m8-retrieval-v0",
+  "summary": {
+    "error": 0,
+    "fail": 0,
+    "pass": 4
+  }
+}
