@@ -2,6 +2,7 @@ import pytest
 
 from agent_platform.application.run_agent import RunAgent
 from agent_platform.application.work_orchestrator import WorkOrchestrator
+from agent_platform.domain.context import ContextRef, ContextRole
 from agent_platform.domain.models import (
     RunStatus,
     RuntimeRequest,
@@ -9,8 +10,6 @@ from agent_platform.domain.models import (
 )
 from agent_platform.domain.observability import ObservationEvent
 from agent_platform.domain.work import (
-    ContextRef,
-    ContextRole,
     WorkRequest,
     WorkStatus,
     WorkStep,

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 
 from agent_platform.application.work_orchestrator import WorkOrchestrator
+from agent_platform.domain.context import ContextRef
 from agent_platform.domain.evaluation import (
     EvaluationCase,
     EvaluationOutcome,
@@ -8,7 +9,6 @@ from agent_platform.domain.evaluation import (
 )
 from agent_platform.domain.models import RunStatus
 from agent_platform.domain.work import (
-    ContextRef,
     WorkRequest,
     WorkStatus,
 )

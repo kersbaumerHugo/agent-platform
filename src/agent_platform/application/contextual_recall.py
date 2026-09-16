@@ -5,6 +5,7 @@ from agent_platform.contracts.memory import (
     RetrievalAcceptanceContract,
     RetrievalContract,
 )
+from agent_platform.domain.context import ContextRef
 from agent_platform.domain.memory import (
     MemoryScope,
     RetrievalAcceptanceDecision,
@@ -12,7 +13,6 @@ from agent_platform.domain.memory import (
     RetrievalHit,
     RetrievalQuery,
 )
-from agent_platform.domain.work import ContextRef
 
 
 @dataclass(frozen=True)
