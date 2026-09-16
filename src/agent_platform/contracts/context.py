@@ -2,6 +2,10 @@ from collections.abc import Sequence
 from typing import Protocol
 
 from agent_platform.domain.context import ContextBundle, ContextContribution
+from agent_platform.domain.context_budget import (
+    BudgetedContextBundle,
+    ContextBudget,
+)
 from agent_platform.domain.context_preparation import (
     RecallIntent,
     RecallPlan,
@@ -40,3 +44,24 @@ class ContextAssemblerContract(Protocol):
         self,
         contributions: Sequence[ContextContribution],
     ) -> ContextBundle: ...
+
+
+class TokenEstimatorContract(Protocol):
+    @property
+    def version(self) -> str: ...
+
+    def estimate(
+        self,
+        text: str,
+    ) -> int: ...
+
+
+class ContextBudgetPolicyContract(Protocol):
+    @property
+    def version(self) -> str: ...
+
+    def apply(
+        self,
+        bundle: ContextBundle,
+        budget: ContextBudget,
+    ) -> BudgetedContextBundle: ...
