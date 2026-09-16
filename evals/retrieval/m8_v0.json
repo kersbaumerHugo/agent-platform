@@ -1,0 +1,115 @@
+{
+  "suite_id": "m8-retrieval-v0",
+  "memories": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "scope": {
+        "namespace": "platform"
+      },
+      "content": "The local inference backend uses llama cpp for local inference backend workloads.",
+      "created_at": "2026-09-16T00:00:00+00:00",
+      "metadata": {
+        "source": "m8-eval-corpus"
+      }
+    },
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "scope": {
+        "namespace": "platform"
+      },
+      "content": "The local inference backend runs on inference01 and exposes an OpenAI compatible API.",
+      "created_at": "2026-09-16T00:00:01+00:00",
+      "metadata": {
+        "source": "m8-eval-corpus"
+      }
+    },
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "scope": {
+        "namespace": "platform"
+      },
+      "content": "Memory recall uses SQLite FTS5 BM25 lexical retrieval.",
+      "created_at": "2026-09-16T00:00:02+00:00",
+      "metadata": {
+        "source": "m8-eval-corpus"
+      }
+    },
+    {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "scope": {
+        "namespace": "other"
+      },
+      "content": "The local inference backend uses llama cpp for local inference backend workloads.",
+      "created_at": "2026-09-16T00:00:03+00:00",
+      "metadata": {
+        "source": "m8-eval-corpus"
+      }
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "relevant-local-inference",
+      "input": {
+        "namespace": "platform",
+        "query": "local inference backend",
+        "limit": 5
+      },
+      "expected": {
+        "decision": "accept",
+        "memory_ids": [
+          "11111111-1111-4111-8111-111111111111"
+        ],
+        "top_memory_id": "11111111-1111-4111-8111-111111111111"
+      },
+      "metadata": {
+        "category": "positive-retrieval"
+      }
+    },
+    {
+      "case_id": "relevant-memory-recall",
+      "input": {
+        "namespace": "platform",
+        "query": "memory recall sqlite",
+        "limit": 5
+      },
+      "expected": {
+        "decision": "accept",
+        "memory_ids": [
+          "33333333-3333-4333-8333-333333333333"
+        ],
+        "top_memory_id": "33333333-3333-4333-8333-333333333333"
+      },
+      "metadata": {
+        "category": "positive-retrieval"
+      }
+    },
+    {
+      "case_id": "unrelated-query-abstains",
+      "input": {
+        "namespace": "platform",
+        "query": "kubernetes autoscaling",
+        "limit": 5
+      },
+      "expected": {
+        "decision": "abstain"
+      },
+      "metadata": {
+        "category": "negative-retrieval"
+      }
+    },
+    {
+      "case_id": "cross-scope-query-abstains",
+      "input": {
+        "namespace": "isolated",
+        "query": "local inference backend",
+        "limit": 5
+      },
+      "expected": {
+        "decision": "abstain"
+      },
+      "metadata": {
+        "category": "scope-isolation"
+      }
+    }
+  ]
+}
