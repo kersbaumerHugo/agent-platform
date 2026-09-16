@@ -1,8 +1,10 @@
 # ADR-0007: Work API and Deterministic Orchestrator V0
 
-- Status: Proposed
-- Date: 2026-09-16
+- Status: Accepted
+- Proposed: 2026-09-16
+- Accepted: 2026-09-16
 - Governing principle: ADR-0002 — Evidence-Gated Architecture
+- Evidence: `docs/evidence/m9-work-orchestration-experiment-results.md`
 - Related decisions:
   - ADR-0005 — Memory & Recall V0
   - ADR-0006 — Evaluation Plane / Eval-as-Code
@@ -101,9 +103,9 @@ This already provides:
 
 M9 must reuse this baseline rather than replacing it.
 
-## Proposed decision
+## Decision
 
-Experiment with a minimal, deterministic Work API and Orchestrator V0.
+Accept a minimal, deterministic Work API and Orchestrator V0.
 
 Conceptually:
 
@@ -497,7 +499,7 @@ Each must earn its place independently.
 
 ## Experiment
 
-This ADR remains **Proposed** until the experiment in:
+The experiment defined in:
 
 ```text
 docs/evidence/m9-work-orchestration-experiment-plan.md
@@ -505,11 +507,24 @@ docs/evidence/m9-work-orchestration-experiment-plan.md
 
 is completed.
 
-Expected results should be recorded in:
+Results are recorded in:
 
 ```text
 docs/evidence/m9-work-orchestration-experiment-results.md
 ```
+
+## Final decision
+
+The M9 experiment satisfied the acceptance criteria for the minimal Work API,
+deterministic orchestration policy, and explicit contextual-recall boundary.
+
+ADR-0007 is therefore **Accepted**.
+
+The accepted decision does not include runtime/model context injection, an
+automatic Context Resolver, LLM planning, retries, parallelism, persistence,
+queues, distributed execution, or an external workflow framework.
+
+Those capabilities remain evidence-gated.
 
 ## Decision rule
 
