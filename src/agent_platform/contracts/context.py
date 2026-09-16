@@ -1,0 +1,42 @@
+from collections.abc import Sequence
+from typing import Protocol
+
+from agent_platform.domain.context import ContextBundle, ContextContribution
+from agent_platform.domain.context_preparation import (
+    RecallIntent,
+    RecallPlan,
+    RecallRequest,
+)
+
+
+class RecallPlannerContract(Protocol):
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def version(self) -> str: ...
+
+    async def plan(
+        self,
+        intent: RecallIntent,
+    ) -> RecallPlan: ...
+
+
+class ContextProviderContract(Protocol):
+    @property
+    def name(self) -> str: ...
+
+    async def provide(
+        self,
+        request: RecallRequest,
+    ) -> ContextContribution: ...
+
+
+class ContextAssemblerContract(Protocol):
+    @property
+    def version(self) -> str: ...
+
+    def assemble(
+        self,
+        contributions: Sequence[ContextContribution],
+    ) -> ContextBundle: ...
