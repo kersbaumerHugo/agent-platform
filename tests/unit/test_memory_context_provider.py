@@ -13,6 +13,9 @@ from agent_platform.domain.context import (
     content_sha256,
 )
 from agent_platform.domain.context_preparation import RecallRequest
+from agent_platform.domain.context_trace import (
+    ContextProviderDecision,
+)
 from agent_platform.domain.memory import (
     MemoryRecord,
     MemoryScope,
@@ -155,13 +158,14 @@ async def test_provider_translates_recall_request_to_retrieval_query() -> None:
         acceptance=acceptance,
     )
 
-    contribution = await provider.provide(
+    result = await provider.provide(
         make_request(
             namespace="project:homelab",
             query="homelab observability",
             limit=7,
         )
     )
+    contribution = result.contribution
 
     assert len(retrieval.queries) == 1
     query = retrieval.queries[0]
@@ -170,6 +174,10 @@ async def test_provider_translates_recall_request_to_retrieval_query() -> None:
     assert query.limit == 7
     assert contribution.context.namespace == "project:homelab"
     assert contribution.items == ()
+    assert result.trace.request_id == "subject"
+    assert result.trace.candidate_count == 0
+    assert result.trace.accepted_count == 0
+    assert result.trace.rejected_count == 0
 
 
 @pytest.mark.asyncio
@@ -195,7 +203,8 @@ async def test_accepted_memory_becomes_source_neutral_context_item() -> None:
         ),
     )
 
-    contribution = await provider.provide(make_request())
+    result = await provider.provide(make_request())
+    contribution = result.contribution
 
     assert contribution.provider == "memory"
     assert len(contribution.items) == 1
@@ -212,6 +221,13 @@ async def test_accepted_memory_becomes_source_neutral_context_item() -> None:
     dumped = contribution.model_dump()
     assert "score" not in str(dumped)
     assert "rank" not in str(dumped)
+    assert result.trace.decision is ContextProviderDecision.ACCEPT
+    assert result.trace.reason_code == "accepted"
+    assert result.trace.candidate_count == 1
+    assert result.trace.accepted_count == 1
+    assert result.trace.rejected_count == 0
+    assert result.trace.accepted_sources[0].source_id == memory_id
+    assert result.trace.accepted_sources[0].content_hash == content_sha256(content)
 
 
 @pytest.mark.asyncio
@@ -229,7 +245,8 @@ async def test_memory_kind_defaults_when_metadata_kind_is_missing() -> None:
         ),
     )
 
-    contribution = await provider.provide(make_request())
+    result = await provider.provide(make_request())
+    contribution = result.contribution
 
     assert contribution.items[0].kind == "memory"
 
@@ -261,7 +278,8 @@ async def test_provider_orders_accepted_items_by_rank_then_source_id() -> None:
         ),
     )
 
-    contribution = await provider.provide(make_request())
+    result = await provider.provide(make_request())
+    contribution = result.contribution
 
     assert [item.provenance.source_id for item in contribution.items] == [
         "11111111-1111-1111-1111-111111111111",
@@ -285,10 +303,17 @@ async def test_abstain_exposes_no_retrieved_memory() -> None:
         ),
     )
 
-    contribution = await provider.provide(make_request())
+    result = await provider.provide(make_request())
+    contribution = result.contribution
 
     assert contribution.provider == "memory"
     assert contribution.items == ()
+    assert result.trace.decision is ContextProviderDecision.ABSTAIN
+    assert result.trace.reason_code == "rejected"
+    assert result.trace.candidate_count == 1
+    assert result.trace.accepted_count == 0
+    assert result.trace.rejected_count == 1
+    assert result.trace.accepted_sources == ()
 
 
 @pytest.mark.asyncio
@@ -307,10 +332,15 @@ async def test_scope_mismatch_fails_closed_even_if_gate_accepts() -> None:
         ),
     )
 
-    contribution = await provider.provide(
+    result = await provider.provide(
         make_request(
             namespace="project:homelab",
         )
     )
+    contribution = result.contribution
 
     assert contribution.items == ()
+    assert result.trace.decision is ContextProviderDecision.ABSTAIN
+    assert result.trace.reason_code == "provider_scope_mismatch"
+    assert result.trace.candidate_count == 1
+    assert result.trace.rejected_count == 1
