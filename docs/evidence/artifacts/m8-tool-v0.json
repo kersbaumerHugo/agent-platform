@@ -1,0 +1,57 @@
+{
+  "case_count": 3,
+  "deterministic_reproducibility": true,
+  "duration_seconds": 0.0020649179932661355,
+  "results": [
+    {
+      "case_id": "diagnostic-echo-success",
+      "evaluator": "tool",
+      "metadata": {
+        "tool_name": "diagnostic_echo"
+      },
+      "metrics": {
+        "invocation_succeeded": 1.0,
+        "output_match": 1.0,
+        "run_id_match": 1.0,
+        "tool_name_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "diagnostic-echo-second-success",
+      "evaluator": "tool",
+      "metadata": {
+        "tool_name": "diagnostic_echo"
+      },
+      "metrics": {
+        "invocation_succeeded": 1.0,
+        "output_match": 1.0,
+        "run_id_match": 1.0,
+        "tool_name_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "diagnostic-echo-validation-failure",
+      "evaluator": "tool",
+      "metadata": {
+        "error_type": "ValidationError",
+        "tool_name": "diagnostic_echo"
+      },
+      "metrics": {
+        "expected_error_match": 1.0,
+        "invocation_succeeded": 0.0
+      },
+      "outcome": "pass",
+      "reason_code": "expected_tool_error"
+    }
+  ],
+  "suite_id": "m8-tool-v0",
+  "summary": {
+    "error": 0,
+    "fail": 0,
+    "pass": 3
+  }
+}
