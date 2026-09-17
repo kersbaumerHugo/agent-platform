@@ -1,7 +1,8 @@
 # ADR-0009: Context-Aware Work Execution V0
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-17
+- Decision date: 2026-09-17
 - Governing principle: ADR-0002 — Evidence-Gated Architecture
 - Related decisions:
   - ADR-0004 — Trusted Self-Development Boundary
@@ -503,32 +504,80 @@ sandbox backend replacement
 
 These capabilities remain separate evidence-gated decisions.
 
-## Experiment
+## Experiment outcome
 
-This ADR remains **Proposed** until the experiment in:
+The M11 experiment is complete.
+
+Plan:
 
 ```text
 docs/evidence/m11-context-aware-work-execution-experiment-plan.md
 ```
 
-is completed.
-
-Expected results should be recorded in:
+Results:
 
 ```text
 docs/evidence/m11-context-aware-work-execution-results.md
 ```
 
-## Decision rule
+The evidence includes:
 
-After the experiment:
+- deterministic Eval-as-Code: 9 PASS, 0 FAIL, 0 ERROR;
+- deterministic integration smoke with reproducibility and invariants passing;
+- concurrent run isolation;
+- binding cleanup on success and failure;
+- required-binding fail-closed behavior;
+- multi-turn binding reuse without duplicate accumulation;
+- supervised real DSH `/work` execution through OpenRouter;
+- supervised real DSH `/work` execution through the local OpenAI-compatible
+  model backend;
+- full repository quality gate passing.
 
-- **Accepted** if context-aware Work execution reaches the real runtime/model path
-  while preserving M9/M10 boundaries and run isolation.
-- **Deferred** if the integration works but requires process/distribution changes
-  not justified by the current deployment.
-- **Rejected** if the proposed binding adds complexity without preserving or
-  improving the accepted execution boundaries.
+The real-smoke platform revision was:
+
+```text
+aff85e89e6da08e73184a42702c3de3f93ec24cf
+```
+
+The local real smoke succeeded with the DSH `sdk-minimal` profile. The heavier
+`sdk` profile exceeded the current local-provider request timeout and is recorded
+as a performance/profile limitation rather than an architectural acceptance
+failure.
+
+## Decision
+
+**Accepted — Strategy B: run-scoped ModelRequest injection.**
+
+The existing `run_id` provides sufficient correlation for V0:
+
+```text
+prepare
+-> allocate run_id
+-> bind prepared context
+-> execute Runtime
+-> resolve at internal Model Gateway
+-> inject at canonical ModelRequest
+-> release
+```
+
+This preserves the accepted M9/M10 boundaries:
+
+```text
+Work != Run != Runtime
+Context Preparation != Runtime
+Context Source != Runtime
+Rendered Context != System Instruction
+Model Provider != Context Pipeline
+```
+
+The experiment did not justify a first-class `ExecutionContext`.
+
+The process-local binding registry is accepted for the current single-process
+topology. A persistent/distributed binding backend remains deferred until a real
+process or host boundary requires it.
+
+No queue, workflow framework, scheduler, Redis deployment, or distributed state
+store is required for M11 V0.
 
 The governing rule remains:
 
