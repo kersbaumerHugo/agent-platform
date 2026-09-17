@@ -3,6 +3,8 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agent_platform.domain.context import ContextRef
+from agent_platform.domain.context_rendering import RenderedContext
+from agent_platform.domain.context_trace import ContextPreparationTrace
 
 
 class RecallIntent(BaseModel):
@@ -44,5 +46,27 @@ class RecallPlan(BaseModel):
 
         if len(request_ids) != len(set(request_ids)):
             raise ValueError("RecallPlan request_id values must be unique.")
+
+        return self
+
+
+class ContextPreparationResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    rendered: RenderedContext
+    trace: ContextPreparationTrace
+
+    @model_validator(mode="after")
+    def validate_trace_matches_rendered_context(self) -> Self:
+        rendering = self.trace.rendering
+
+        if (
+            rendering.renderer != self.rendered.renderer
+            or rendering.version != self.rendered.version
+            or rendering.content_hash != self.rendered.content_hash
+        ):
+            raise ValueError(
+                "ContextPreparationResult trace rendering must match rendered context."
+            )
 
         return self
