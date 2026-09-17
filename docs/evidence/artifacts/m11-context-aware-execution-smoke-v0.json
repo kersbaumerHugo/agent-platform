@@ -1,0 +1,279 @@
+{
+  "deterministic_reproducibility": true,
+  "invariants_passed": true,
+  "run": {
+    "all_bindings_cleared": true,
+    "context_aware_work": {
+      "bindings_cleared": true,
+      "contexts": [
+        {
+          "namespace": "app:linkedin",
+          "role": "delivery"
+        },
+        {
+          "namespace": "project:homelab",
+          "role": "subject"
+        }
+      ],
+      "failed_step_id": null,
+      "run_ids_distinct": true,
+      "runtime_observations": [
+        {
+          "binding_present": true,
+          "binding_required": true,
+          "context_message_count": 1,
+          "message_content_hashes": [
+            "sha256:24df928461c09ee1a06ec7dd08b76f8614520d24c79dccc4f54506027f9ef123",
+            "sha256:82c7d92a30af11c5c72786865141a56a2cb1f7dc8262b19943638f5c1d9261b9",
+            "sha256:7743ce348d9284d677a185f33295b92266cc435a5b5f775029b300066d26693a"
+          ],
+          "message_roles": [
+            "system",
+            "user",
+            "user"
+          ],
+          "rendered_context_hash": "sha256:82c7d92a30af11c5c72786865141a56a2cb1f7dc8262b19943638f5c1d9261b9",
+          "system_message_unchanged": true
+        },
+        {
+          "binding_present": true,
+          "binding_required": true,
+          "context_message_count": 1,
+          "message_content_hashes": [
+            "sha256:24df928461c09ee1a06ec7dd08b76f8614520d24c79dccc4f54506027f9ef123",
+            "sha256:82c7d92a30af11c5c72786865141a56a2cb1f7dc8262b19943638f5c1d9261b9",
+            "sha256:c97ace4c8fef2cee8fa0f3c9f52aab18dbd4f42438afe362ffb8f75ce4c04b84"
+          ],
+          "message_roles": [
+            "system",
+            "user",
+            "user"
+          ],
+          "rendered_context_hash": "sha256:82c7d92a30af11c5c72786865141a56a2cb1f7dc8262b19943638f5c1d9261b9",
+          "system_message_unchanged": true
+        },
+        {
+          "binding_present": false,
+          "binding_required": false,
+          "context_message_count": 0,
+          "message_content_hashes": [
+            "sha256:24df928461c09ee1a06ec7dd08b76f8614520d24c79dccc4f54506027f9ef123",
+            "sha256:be6bdfe81ec4a456a537a4460f1f45e1fe33d30b4e220b0874299b82fd3a71e2"
+          ],
+          "message_roles": [
+            "system",
+            "user"
+          ],
+          "rendered_context_hash": null,
+          "system_message_unchanged": true
+        }
+      ],
+      "status": "succeeded",
+      "steps": [
+        {
+          "context_trace": {
+            "assembler_version": "v0",
+            "budget": {
+              "budget_tokens": 448,
+              "dropped_item_ids": [],
+              "estimated_tokens": 47,
+              "estimator_version": "utf8-bytes-v0",
+              "policy_version": "canonical-prefix-v0"
+            },
+            "injection": {
+              "injector": "reference-message",
+              "version": "v0"
+            },
+            "planner": "deterministic",
+            "planner_version": "v0",
+            "provider_traces": [
+              {
+                "accepted_count": 1,
+                "accepted_sources": [
+                  {
+                    "content_hash": "sha256:6a085bd5da6fdeda8b48d7ff29bcb30024713179486b69e443e0901a45ae9688",
+                    "source_id": "11111111-1111-4111-8111-111111111111"
+                  }
+                ],
+                "candidate_count": 1,
+                "context": {
+                  "namespace": "app:linkedin",
+                  "role": "delivery"
+                },
+                "decision": "accept",
+                "provider": "memory",
+                "reason_code": "lexical_evidence",
+                "rejected_count": 0,
+                "request_id": "000:delivery:app:linkedin"
+              },
+              {
+                "accepted_count": 1,
+                "accepted_sources": [
+                  {
+                    "content_hash": "sha256:57918968707a55c0b0eb1ee6e703bc6ea44d9a873052887f116b16de68e54827",
+                    "source_id": "22222222-2222-4222-8222-222222222222"
+                  }
+                ],
+                "candidate_count": 1,
+                "context": {
+                  "namespace": "project:homelab",
+                  "role": "subject"
+                },
+                "decision": "accept",
+                "provider": "memory",
+                "reason_code": "lexical_evidence",
+                "rejected_count": 0,
+                "request_id": "001:subject:project:homelab"
+              }
+            ],
+            "rendering": {
+              "content_hash": "sha256:82c7d92a30af11c5c72786865141a56a2cb1f7dc8262b19943638f5c1d9261b9",
+              "renderer": "markdown",
+              "version": "v0"
+            },
+            "version": "v0"
+          },
+          "output": "sha256:94c9a5789a40d2b01152b3387e830f75ed230a748c808372f563127595f14b8d",
+          "run_status": "succeeded",
+          "step_id": "draft"
+        },
+        {
+          "context_trace": {
+            "assembler_version": "v0",
+            "budget": {
+              "budget_tokens": 448,
+              "dropped_item_ids": [],
+              "estimated_tokens": 47,
+              "estimator_version": "utf8-bytes-v0",
+              "policy_version": "canonical-prefix-v0"
+            },
+            "injection": {
+              "injector": "reference-message",
+              "version": "v0"
+            },
+            "planner": "deterministic",
+            "planner_version": "v0",
+            "provider_traces": [
+              {
+                "accepted_count": 1,
+                "accepted_sources": [
+                  {
+                    "content_hash": "sha256:6a085bd5da6fdeda8b48d7ff29bcb30024713179486b69e443e0901a45ae9688",
+                    "source_id": "11111111-1111-4111-8111-111111111111"
+                  }
+                ],
+                "candidate_count": 1,
+                "context": {
+                  "namespace": "app:linkedin",
+                  "role": "delivery"
+                },
+                "decision": "accept",
+                "provider": "memory",
+                "reason_code": "lexical_evidence",
+                "rejected_count": 0,
+                "request_id": "000:delivery:app:linkedin"
+              },
+              {
+                "accepted_count": 1,
+                "accepted_sources": [
+                  {
+                    "content_hash": "sha256:57918968707a55c0b0eb1ee6e703bc6ea44d9a873052887f116b16de68e54827",
+                    "source_id": "22222222-2222-4222-8222-222222222222"
+                  }
+                ],
+                "candidate_count": 1,
+                "context": {
+                  "namespace": "project:homelab",
+                  "role": "subject"
+                },
+                "decision": "accept",
+                "provider": "memory",
+                "reason_code": "lexical_evidence",
+                "rejected_count": 0,
+                "request_id": "001:subject:project:homelab"
+              }
+            ],
+            "rendering": {
+              "content_hash": "sha256:82c7d92a30af11c5c72786865141a56a2cb1f7dc8262b19943638f5c1d9261b9",
+              "renderer": "markdown",
+              "version": "v0"
+            },
+            "version": "v0"
+          },
+          "output": "sha256:c6301f20545061029719163a46ef5356c15a7af9ba14d925dc4f2445f813786f",
+          "run_status": "succeeded",
+          "step_id": "review"
+        }
+      ]
+    },
+    "context_runtime_observations": [
+      {
+        "binding_present": true,
+        "binding_required": true,
+        "context_message_count": 1,
+        "message_content_hashes": [
+          "sha256:24df928461c09ee1a06ec7dd08b76f8614520d24c79dccc4f54506027f9ef123",
+          "sha256:82c7d92a30af11c5c72786865141a56a2cb1f7dc8262b19943638f5c1d9261b9",
+          "sha256:7743ce348d9284d677a185f33295b92266cc435a5b5f775029b300066d26693a"
+        ],
+        "message_roles": [
+          "system",
+          "user",
+          "user"
+        ],
+        "rendered_context_hash": "sha256:82c7d92a30af11c5c72786865141a56a2cb1f7dc8262b19943638f5c1d9261b9",
+        "system_message_unchanged": true
+      },
+      {
+        "binding_present": true,
+        "binding_required": true,
+        "context_message_count": 1,
+        "message_content_hashes": [
+          "sha256:24df928461c09ee1a06ec7dd08b76f8614520d24c79dccc4f54506027f9ef123",
+          "sha256:82c7d92a30af11c5c72786865141a56a2cb1f7dc8262b19943638f5c1d9261b9",
+          "sha256:c97ace4c8fef2cee8fa0f3c9f52aab18dbd4f42438afe362ffb8f75ce4c04b84"
+        ],
+        "message_roles": [
+          "system",
+          "user",
+          "user"
+        ],
+        "rendered_context_hash": "sha256:82c7d92a30af11c5c72786865141a56a2cb1f7dc8262b19943638f5c1d9261b9",
+        "system_message_unchanged": true
+      }
+    ],
+    "no_context_work": {
+      "contexts": [],
+      "failed_step_id": null,
+      "runtime_observations": [
+        {
+          "binding_present": false,
+          "binding_required": false,
+          "context_message_count": 0,
+          "message_content_hashes": [
+            "sha256:24df928461c09ee1a06ec7dd08b76f8614520d24c79dccc4f54506027f9ef123",
+            "sha256:be6bdfe81ec4a456a537a4460f1f45e1fe33d30b4e220b0874299b82fd3a71e2"
+          ],
+          "message_roles": [
+            "system",
+            "user"
+          ],
+          "rendered_context_hash": null,
+          "system_message_unchanged": true
+        }
+      ],
+      "status": "succeeded",
+      "steps": [
+        {
+          "context_trace": null,
+          "output": "sha256:fa125e20d37f76e1b036c13664f387a0beb6f6fbc0ed7027c98623279a9731f2",
+          "run_status": "succeeded",
+          "step_id": "execute"
+        }
+      ]
+    },
+    "raw_context_absent": true,
+    "total_runtime_calls": 3
+  },
+  "suite_id": "m11-context-aware-execution-smoke-v0"
+}
