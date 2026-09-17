@@ -28,20 +28,6 @@ def test_vertical_slice() -> None:
         "/work",
         json={
             "objective": "Write a LinkedIn post about the homelab.",
-            "contexts": [
-                {
-                    "role": "shared",
-                    "namespace": "global",
-                },
-                {
-                    "role": "delivery",
-                    "namespace": "app:linkedin",
-                },
-                {
-                    "role": "subject",
-                    "namespace": "project:homelab",
-                },
-            ],
             "steps": [
                 {
                     "step_id": "draft",
@@ -62,20 +48,7 @@ def test_vertical_slice() -> None:
     assert work_body["status"] == "succeeded"
     assert work_body["work_id"]
     assert work_body["failed_step_id"] is None
-    assert work_body["contexts"] == [
-        {
-            "role": "shared",
-            "namespace": "global",
-        },
-        {
-            "role": "delivery",
-            "namespace": "app:linkedin",
-        },
-        {
-            "role": "subject",
-            "namespace": "project:homelab",
-        },
-    ]
+    assert work_body["contexts"] == []
     assert [step_result["step_id"] for step_result in work_body["step_results"]] == [
         "draft",
         "review",

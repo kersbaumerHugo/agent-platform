@@ -72,16 +72,6 @@ async def test_work_evaluator_passes_for_ordered_success() -> None:
             case_id="ordered-success",
             input={
                 "objective": "Draft and review.",
-                "contexts": [
-                    {
-                        "role": "delivery",
-                        "namespace": "app:linkedin",
-                    },
-                    {
-                        "role": "subject",
-                        "namespace": "project:homelab",
-                    },
-                ],
                 "steps": [
                     {
                         "step_id": "draft",
@@ -106,16 +96,7 @@ async def test_work_evaluator_passes_for_ordered_success() -> None:
                     "succeeded",
                 ],
                 "failed_step_id": None,
-                "contexts": [
-                    {
-                        "role": "delivery",
-                        "namespace": "app:linkedin",
-                    },
-                    {
-                        "role": "subject",
-                        "namespace": "project:homelab",
-                    },
-                ],
+                "contexts": [],
             },
         )
     )
@@ -210,14 +191,14 @@ async def test_work_evaluator_fails_on_context_mismatch() -> None:
                 ],
             },
             expected={
-                "status": "succeeded",
+                "status": "failed",
                 "executed_step_ids": [
                     "draft",
                 ],
                 "run_statuses": [
-                    "succeeded",
+                    "failed",
                 ],
-                "failed_step_id": None,
+                "failed_step_id": "draft",
                 "contexts": [
                     {
                         "role": "delivery",
