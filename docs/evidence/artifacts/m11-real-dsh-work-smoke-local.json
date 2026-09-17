@@ -1,0 +1,46 @@
+{
+  "captured_at": "2026-09-17T18:08:26.176834+00:00",
+  "checks": {
+    "dsh_runtime_metric_seen": true,
+    "expected_marker_returned": true,
+    "model_gateway_success_metric_seen": true,
+    "prepared_context_hash_present": true,
+    "run_succeeded": true,
+    "selected_namespace_accepted": true,
+    "work_succeeded": true
+  },
+  "context_ref": {
+    "namespace": "project:m11-live-smoke",
+    "role": "subject"
+  },
+  "git_revision": "aff85e89e6da08e73184a42702c3de3f93ec24cf",
+  "output_contains_expected_marker": true,
+  "output_sha256": "sha256:5220427c22b07fd094ddda377c714646c8eee8634a0f23be4fcb35af080f41b6",
+  "passed": true,
+  "prepared_context_hash": "sha256:e93b13768e3280ee7b10c0a6193ae5cc8df0fee066c6916b4997392d4aa7d15c",
+  "provider_decisions": [
+    {
+      "accepted_count": 1,
+      "accepted_sources": [
+        {
+          "content_hash": "sha256:d5e42ed8174d7f860615360a7fae023e60152a8a9b3ac38b77eeb306eb222d7a",
+          "source_id": "91190000-0000-4000-8000-000000000001"
+        }
+      ],
+      "context": {
+        "namespace": "project:m11-live-smoke",
+        "role": "subject"
+      },
+      "decision": "accept",
+      "provider": "memory",
+      "reason_code": "lexical_evidence"
+    }
+  ],
+  "raw_model_output_included": false,
+  "run_id": "d51a6277-d124-49ed-b7cd-540fc20b71dc",
+  "run_status": "succeeded",
+  "step_id": "live-context",
+  "suite_id": "m11-real-dsh-work-smoke-v0",
+  "work_id": "c8fc637b-959b-471e-865d-8708f241139a",
+  "work_status": "succeeded"
+}

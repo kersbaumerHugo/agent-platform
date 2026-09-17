@@ -1,7 +1,8 @@
 # M11 Context-Aware Work Execution V0 Experiment Plan
 
-- Status: Proposed experiment
+- Status: Completed
 - Date: 2026-09-17
+- Decision: Accepted — Strategy B
 - Governing principle: ADR-0002 — Evidence-Gated Architecture
 - Related ADR: ADR-0009 — Context-Aware Work Execution V0
 - Related capabilities:
