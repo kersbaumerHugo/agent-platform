@@ -2,9 +2,35 @@ import os
 from collections.abc import Mapping
 from pathlib import Path
 
+from agent_platform.adapters.memory.context_provider import (
+    MemoryContextProvider,
+)
+from agent_platform.adapters.memory.sqlite import SQLiteFTSRetrieval
 from agent_platform.adapters.runtimes.dsh import DSHRuntime
 from agent_platform.adapters.runtimes.fake import FakeRuntime
+from agent_platform.application.context_assembler import (
+    DeterministicContextAssembler,
+)
+from agent_platform.application.context_budget import (
+    DeterministicContextBudgetPolicy,
+    Utf8ByteTokenEstimator,
+)
+from agent_platform.application.context_injector import (
+    ReferenceMessageInjector,
+)
+from agent_platform.application.context_preparation import PrepareContext
+from agent_platform.application.context_renderer import (
+    MarkdownContextRenderer,
+)
+from agent_platform.application.context_trace import ContextTraceBuilder
+from agent_platform.application.recall_planner import (
+    DeterministicRecallPlanner,
+)
+from agent_platform.application.retrieval_acceptance import (
+    LexicalRetrievalAcceptanceGate,
+)
 from agent_platform.contracts.runtime import RuntimeContract
+from agent_platform.domain.context_budget import ContextBudget
 
 
 def build_runtime(
@@ -29,6 +55,88 @@ def build_runtime(
     raise ValueError(
         f"Unsupported AGENT_PLATFORM_RUNTIME {runtime_name!r}; expected 'fake' or 'dsh'."
     )
+
+
+def build_context_preparation(
+    env: Mapping[str, str] | None = None,
+) -> tuple[PrepareContext, ContextBudget] | None:
+    values = os.environ if env is None else env
+    database_path = values.get(
+        "AGENT_PLATFORM_MEMORY_DB",
+        "",
+    ).strip()
+
+    if not database_path:
+        return None
+
+    max_total_tokens = _configured_int(
+        values,
+        "AGENT_PLATFORM_CONTEXT_MAX_TOTAL_TOKENS",
+        default=4096,
+        minimum=1,
+    )
+    base_input_tokens = _configured_int(
+        values,
+        "AGENT_PLATFORM_CONTEXT_BASE_INPUT_TOKENS",
+        default=0,
+        minimum=0,
+    )
+    reserved_output_tokens = _configured_int(
+        values,
+        "AGENT_PLATFORM_CONTEXT_RESERVED_OUTPUT_TOKENS",
+        default=1024,
+        minimum=0,
+    )
+
+    retrieval = SQLiteFTSRetrieval(
+        Path(database_path),
+    )
+    acceptance = LexicalRetrievalAcceptanceGate()
+    provider = MemoryContextProvider(
+        retrieval=retrieval,
+        acceptance=acceptance,
+    )
+    estimator = Utf8ByteTokenEstimator()
+
+    prepare_context = PrepareContext(
+        planner=DeterministicRecallPlanner(),
+        provider=provider,
+        assembler=DeterministicContextAssembler(),
+        budget_policy=DeterministicContextBudgetPolicy(
+            estimator=estimator,
+        ),
+        token_estimator=estimator,
+        renderer=MarkdownContextRenderer(),
+        injector=ReferenceMessageInjector(),
+        trace_builder=ContextTraceBuilder(),
+    )
+    budget = ContextBudget(
+        max_total_tokens=max_total_tokens,
+        base_input_tokens=base_input_tokens,
+        reserved_output_tokens=reserved_output_tokens,
+    )
+
+    return prepare_context, budget
+
+
+def _configured_int(
+    env: Mapping[str, str],
+    name: str,
+    *,
+    default: int,
+    minimum: int,
+) -> int:
+    raw_value = env.get(name, str(default)).strip()
+
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer.") from exc
+
+    if value < minimum:
+        raise ValueError(f"{name} must be greater than or equal to {minimum}.")
+
+    return value
 
 
 def _build_dsh_runtime(

@@ -42,7 +42,26 @@ class WorkOrchestrator:
         for step in request.steps:
             prepared_context: ContextPreparationResult | None = None
 
-            if request.contexts and self._prepare_context is not None:
+            if request.contexts and self._prepare_context is None:
+                run = RunResult(
+                    agent_id=step.agent_id,
+                    status=RunStatus.FAILED,
+                    error="context preparation is not configured.",
+                    finished_at=utcnow(),
+                )
+                work.step_results.append(
+                    WorkStepResult(
+                        step_id=step.step_id,
+                        run=run,
+                    )
+                )
+                work.status = WorkStatus.FAILED
+                work.failed_step_id = step.step_id
+                work.finished_at = utcnow()
+                return work
+
+            if request.contexts:
+                assert self._prepare_context is not None
                 assert self._context_budget is not None
 
                 try:
