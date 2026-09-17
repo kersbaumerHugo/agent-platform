@@ -7,10 +7,16 @@ from opentelemetry.trace import (
     Tracer,
 )
 
+from agent_platform.application.run_context import (
+    InMemoryRunContextBindings,
+)
 from agent_platform.contracts.observability import (
     ObservationContract,
 )
 from agent_platform.contracts.runtime import RuntimeContract
+from agent_platform.domain.context_preparation import (
+    ContextPreparationResult,
+)
 from agent_platform.domain.models import (
     RunRequest,
     RunResult,
@@ -31,18 +37,26 @@ class RunAgent:
         runtime: RuntimeContract,
         observer: ObservationContract,
         tracer: Tracer | None = None,
+        run_context_bindings: InMemoryRunContextBindings | None = None,
     ) -> None:
         self.runtime = runtime
         self.observer = observer
         self._tracer = tracer or trace.get_tracer("agent_platform.run")
+        self._run_context_bindings = run_context_bindings
 
-    async def execute(self, request: RunRequest) -> RunResult:
+    async def execute(
+        self,
+        request: RunRequest,
+        *,
+        prepared_context: ContextPreparationResult | None = None,
+    ) -> RunResult:
         run = RunResult(
             agent_id=request.agent_id,
             status=RunStatus.RUNNING,
         )
 
         started = perf_counter()
+        context_bound = False
 
         with self._tracer.start_as_current_span("agent.run") as span:
             span.set_attribute(
@@ -69,25 +83,46 @@ class RunAgent:
             )
 
             try:
-                with self._tracer.start_as_current_span("runtime.execute") as runtime_span:
-                    runtime_span.set_attribute(
-                        "agent_platform.run.id",
-                        str(run.run_id),
-                    )
-                    runtime_span.set_attribute(
-                        "agent_platform.runtime.name",
-                        self.runtime.name,
-                    )
+                if prepared_context is not None:
+                    if self._run_context_bindings is None:
+                        raise RuntimeError("Prepared context requires run-scoped context bindings.")
 
-                    runtime_result = await self.runtime.execute(
-                        RuntimeRequest(
-                            run_id=run.run_id,
-                            agent_id=request.agent_id,
-                            input=request.input,
+                    self._run_context_bindings.require(run.run_id)
+
+                    try:
+                        self._run_context_bindings.bind(
+                            run.run_id,
+                            prepared_context,
                         )
-                    )
+                    except Exception:
+                        self._run_context_bindings.release(run.run_id)
+                        raise
 
-                    runtime_span.set_status(Status(StatusCode.OK))
+                    context_bound = True
+
+                try:
+                    with self._tracer.start_as_current_span("runtime.execute") as runtime_span:
+                        runtime_span.set_attribute(
+                            "agent_platform.run.id",
+                            str(run.run_id),
+                        )
+                        runtime_span.set_attribute(
+                            "agent_platform.runtime.name",
+                            self.runtime.name,
+                        )
+
+                        runtime_result = await self.runtime.execute(
+                            RuntimeRequest(
+                                run_id=run.run_id,
+                                agent_id=request.agent_id,
+                                input=request.input,
+                            )
+                        )
+
+                        runtime_span.set_status(Status(StatusCode.OK))
+                finally:
+                    if context_bound and self._run_context_bindings is not None:
+                        self._run_context_bindings.release(run.run_id)
 
                 run.status = RunStatus.SUCCEEDED
                 run.output = runtime_result.output
