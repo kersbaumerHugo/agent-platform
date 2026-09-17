@@ -70,6 +70,71 @@ Platform Tools                      Memory & Recall
                                                    ACCEPT / ABSTAIN
 ```
 
+## Work and Context Preparation plane
+
+M9 and M10 add an application-level path above the existing runtime/model/tool
+boundaries:
+
+```text
+WorkRequest
+  |
+  +--> objective
+  +--> explicit ContextRef[]
+  +--> WorkStep[]
+             |
+             v
+      WorkOrchestrator
+             |
+             v
+      RecallIntent
+             |
+             v
+ DeterministicRecallPlanner
+             |
+             v
+      RecallPlan
+             |
+             v
+  ContextProviderContract
+             |
+             v
+    MemoryContextProvider
+             |
+             v
+  ContextContribution[]
+             |
+             v
+ DeterministicContextAssembler
+             |
+             v
+       ContextBundle
+             |
+             v
+ DeterministicContextBudgetPolicy
+             |
+             v
+  BudgetedContextBundle
+             |
+             v
+   MarkdownContextRenderer
+             |
+             v
+      RenderedContext
+             |
+             v
+   ReferenceMessageInjector
+             |
+             v
+        ModelRequest
+```
+
+This pipeline has been validated independently through Eval-as-Code and an
+end-to-end deterministic smoke.
+
+The current default Work execution path does **not yet** invoke this preparation
+pipeline before `RunAgent`. Wiring the accepted M10 subsystem into real WorkStep
+execution is the next candidate milestone.
+
 ## Core contracts
 
 ### RuntimeContract
@@ -116,6 +181,37 @@ The current adapter uses SQLite FTS5 with BM25 ranking.
 Defines whether retrieved evidence is sufficient to use.
 
 The current deterministic implementation returns ACCEPT or ABSTAIN based on lexical evidence and scope constraints.
+
+### EvaluationContract
+
+Defines deterministic evaluation independently from runtime observability,
+benchmarks, tests and guardrails.
+
+The Evaluation Plane uses canonical EvaluationCase / EvaluationResult values and
+an EvalRunner to emit machine-readable PASS / FAIL / ERROR evidence.
+
+### Work boundary
+
+`WorkRequest` represents an objective, an explicit `ContextRef[]` allow-list and
+one or more deterministic WorkStep values.
+
+The V0 WorkOrchestrator executes steps sequentially and stops on the first failed
+Run.
+
+### Context preparation contracts
+
+The accepted M10 behavioral seams are:
+
+- RecallPlannerContract;
+- ContextProviderContract;
+- ContextAssemblerContract;
+- ContextBudgetPolicyContract;
+- TokenEstimatorContract;
+- ContextRendererContract;
+- ContextInjectorContract.
+
+The canonical Context IR remains source-neutral. Memory is one provider
+implementation rather than the definition of Context.
 
 ## Model-provider flow
 
@@ -227,7 +323,66 @@ Retrieval owns search and ranking.
 
 The Retrieval Acceptance Gate decides whether retrieved evidence is sufficient to return.
 
-Automatic context injection is not part of the current baseline.
+Memory recall itself does not inject context.
+
+M10 adds a separate accepted context-preparation and privilege-safe injection
+pipeline downstream from explicit context selection. Retrieved/provider content
+is treated as reference data and is never promoted into a new system message by
+structure.
+
+The remaining integration gap is operational: the default WorkOrchestrator still
+passes only `agent_id` and step input into `RunAgent`, so M10 preparation is not
+yet part of the real `/work` execution path.
+
+## Context preparation and injection
+
+The accepted deterministic V0 flow is:
+
+```text
+explicit ContextRef[]
+      |
+      v
+RecallIntent
+      |
+      v
+RecallPlan
+      |
+      v
+ContextProviderContract(s)
+      |
+      v
+ContextContribution[]
+      |
+      v
+ContextBundle
+      |
+      v
+BudgetedContextBundle
+      |
+      v
+RenderedContext
+      |
+      v
+ModelRequest
+```
+
+Key properties:
+
+- explicit M9 ContextRef values remain the allow-list boundary;
+- no implicit namespace discovery is performed;
+- MemoryContextProvider normalizes memory/retrieval evidence into source-neutral
+  ContextContribution values;
+- assembly, budgeting, rendering and injection are deterministic;
+- provider-specific retrieval scores do not leak into model-facing context;
+- budgeting reserves bounded capacity before injection;
+- rendered context is injected using a user-role reference message;
+- operational evidence is stored separately in ContextPreparationTrace;
+- raw recalled context and recall query text are not copied into default trace
+  evidence.
+
+The accepted V0 deliberately does not require embeddings, reranking, an LLM
+planner, context summarization, a vector database, GraphRAG or an external RAG
+framework.
 
 ## Deployment architecture
 
@@ -380,6 +535,10 @@ The internal Model Gateway requires a bearer token through `MODEL_GATEWAY_API_KE
 
 Provider credentials remain inside the platform boundary.
 
+M10 adds an instruction-privilege boundary: retrieved/provider context is injected
+as reference data through a user-role ModelMessage while existing system messages
+remain unchanged.
+
 OpenRouter credentials are retained by the platform process.
 
 The local inference credential is used only by the Local OpenAI adapter.
@@ -415,6 +574,61 @@ docs/adr/0005-memory-recall-v0.md
 docs/evidence/m7-memory-recall-results.md
 ```
 
+## M8 validation status
+
+M8 Evaluation Plane / Eval-as-Code is accepted.
+
+Validated behavior includes:
+
+- platform-owned evaluation contracts;
+- deterministic evaluation execution;
+- PASS / FAIL / ERROR outcomes;
+- machine-readable evidence artifacts;
+- explicit separation from observability, benchmark, test and guardrail concerns.
+
+See ADR-0006.
+
+## M9 validation status
+
+M9 Work API and deterministic orchestration is accepted.
+
+Validated behavior includes:
+
+- explicit WorkRequest / WorkResult boundaries;
+- sequential deterministic WorkStep execution;
+- fail-fast behavior on the first failed Run;
+- explicit ContextRef allow-list propagation at the Work boundary;
+- additive `/work` API;
+- deterministic contextual recall experiments.
+
+See ADR-0007.
+
+## M10 validation status
+
+M10 Context Preparation + Injection V0 is accepted.
+
+Validated behavior includes:
+
+- source-neutral Context IR;
+- deterministic recall planning;
+- Memory as a Context Provider;
+- deterministic context assembly;
+- bounded deterministic budgeting;
+- byte-stable Markdown rendering;
+- privilege-safe injection through canonical ModelRequest;
+- structured ContextPreparationTrace evidence;
+- 8/8 deterministic Eval-as-Code acceptance cases;
+- deterministic end-to-end LinkedIn + Homelab smoke.
+
+See:
+
+```text
+docs/adr/0008-context-preparation-injection-v0.md
+docs/evidence/m10-context-preparation-experiment-results.md
+docs/evidence/artifacts/m10-context-preparation-v0.json
+docs/evidence/artifacts/m10-context-preparation-smoke-v0.json
+```
+
 ## Current limitations
 
 - No cross-process traceparent propagation.
@@ -424,7 +638,13 @@ docs/evidence/m7-memory-recall-results.md
 - Provider routing/fallback is intentionally minimal.
 - Semantic retrieval is not justified by current evidence.
 - Automatic memory extraction is not implemented.
-- Automatic context injection is not implemented.
+- The accepted M10 context-preparation/injection pipeline is not yet wired
+  into the default `/work` execution path.
+- The default FastAPI `/runs` and `/work` composition still instantiates
+  `FakeRuntime`; the real DSH Runtime Adapter exists but is not yet the default
+  Work execution composition.
+- ContextPreparationTrace is not yet correlated with Work/Run lifecycle evidence
+  in the live execution path.
 - Dedicated retrieval-quality metrics are not yet implemented.
 - Persistent SQLite file creation permissions need deployment hardening so restrictive mode is automatic.
 
