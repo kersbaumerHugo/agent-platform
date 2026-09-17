@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field, model_validator
 
 from agent_platform.domain.context import ContextRef
+from agent_platform.domain.context_trace import ContextPreparationTrace
 from agent_platform.domain.models import RunResult, utcnow
 
 
@@ -45,6 +46,7 @@ class WorkStatus(StrEnum):
 class WorkStepResult(BaseModel):
     step_id: str = Field(min_length=1)
     run: RunResult
+    context_trace: ContextPreparationTrace | None = None
 
 
 class WorkResult(BaseModel):
