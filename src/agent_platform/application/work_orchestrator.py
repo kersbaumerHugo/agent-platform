@@ -83,6 +83,9 @@ class WorkOrchestrator:
                 WorkStepResult(
                     step_id=step.step_id,
                     run=run,
+                    context_trace=(
+                        prepared_context.trace if prepared_context is not None else None
+                    ),
                 )
             )
 
