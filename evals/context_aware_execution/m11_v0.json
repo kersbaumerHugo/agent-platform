@@ -1,0 +1,353 @@
+{
+  "suite_id": "m11-context-aware-work-execution-v0",
+  "cases": [
+    {
+      "case_id": "context-aware-step",
+      "input": {
+        "scenario": "work",
+        "work": {
+          "objective": "Write about the homelab.",
+          "contexts": [
+            {
+              "role": "subject",
+              "namespace": "project:homelab"
+            }
+          ],
+          "steps": [
+            {
+              "step_id": "draft",
+              "agent_id": "writer",
+              "input": "Draft the post."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "work_status": "succeeded",
+        "executed_step_ids": [
+          "draft"
+        ],
+        "run_statuses": [
+          "succeeded"
+        ],
+        "work_contexts": [
+          {
+            "role": "subject",
+            "namespace": "project:homelab"
+          }
+        ],
+        "trace_present": [
+          true
+        ],
+        "traced_contexts": [
+          [
+            {
+              "role": "subject",
+              "namespace": "project:homelab"
+            }
+          ]
+        ],
+        "bindings_cleared": true,
+        "runtime_context_present": [
+          true
+        ],
+        "runtime_required": [
+          true
+        ],
+        "distinct_run_ids": true
+      }
+    },
+    {
+      "case_id": "no-context",
+      "input": {
+        "scenario": "work",
+        "work": {
+          "objective": "Run without context.",
+          "contexts": [],
+          "steps": [
+            {
+              "step_id": "execute",
+              "agent_id": "worker",
+              "input": "Execute without context."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "work_status": "succeeded",
+        "executed_step_ids": [
+          "execute"
+        ],
+        "run_statuses": [
+          "succeeded"
+        ],
+        "work_contexts": [],
+        "trace_present": [
+          false
+        ],
+        "traced_contexts": [
+          []
+        ],
+        "bindings_cleared": true,
+        "runtime_context_present": [
+          false
+        ],
+        "runtime_required": [
+          false
+        ],
+        "distinct_run_ids": true
+      }
+    },
+    {
+      "case_id": "explicit-context-allow-list",
+      "input": {
+        "scenario": "work",
+        "work": {
+          "objective": "Write a LinkedIn homelab post; undeclared contexts must not participate.",
+          "contexts": [
+            {
+              "role": "delivery",
+              "namespace": "app:linkedin"
+            },
+            {
+              "role": "subject",
+              "namespace": "project:homelab"
+            }
+          ],
+          "steps": [
+            {
+              "step_id": "draft",
+              "agent_id": "writer",
+              "input": "Draft using only declared context scopes."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "work_status": "succeeded",
+        "executed_step_ids": [
+          "draft"
+        ],
+        "run_statuses": [
+          "succeeded"
+        ],
+        "work_contexts": [
+          {
+            "role": "delivery",
+            "namespace": "app:linkedin"
+          },
+          {
+            "role": "subject",
+            "namespace": "project:homelab"
+          }
+        ],
+        "trace_present": [
+          true
+        ],
+        "traced_contexts": [
+          [
+            {
+              "role": "delivery",
+              "namespace": "app:linkedin"
+            },
+            {
+              "role": "subject",
+              "namespace": "project:homelab"
+            }
+          ]
+        ],
+        "bindings_cleared": true,
+        "runtime_context_present": [
+          true
+        ],
+        "runtime_required": [
+          true
+        ]
+      }
+    },
+    {
+      "case_id": "runtime-failure-cleanup",
+      "input": {
+        "scenario": "work",
+        "runtime_failure_input": "__RUNTIME_FAIL__",
+        "work": {
+          "objective": "Execute a context-aware step that fails in runtime.",
+          "contexts": [
+            {
+              "role": "subject",
+              "namespace": "project:homelab"
+            }
+          ],
+          "steps": [
+            {
+              "step_id": "execute",
+              "agent_id": "worker",
+              "input": "__RUNTIME_FAIL__"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "work_status": "failed",
+        "executed_step_ids": [
+          "execute"
+        ],
+        "run_statuses": [
+          "failed"
+        ],
+        "trace_present": [
+          true
+        ],
+        "traced_contexts": [
+          [
+            {
+              "role": "subject",
+              "namespace": "project:homelab"
+            }
+          ]
+        ],
+        "bindings_cleared": true,
+        "runtime_context_present": [
+          true
+        ],
+        "runtime_required": [
+          true
+        ]
+      }
+    },
+    {
+      "case_id": "missing-required-binding",
+      "input": {
+        "scenario": "missing_binding"
+      },
+      "expected": {
+        "gateway_status_code": 503,
+        "gateway_error_type": "required_context_binding_missing",
+        "bindings_cleared": true
+      }
+    },
+    {
+      "case_id": "multi-turn-binding-reuse",
+      "input": {
+        "scenario": "multi_turn"
+      },
+      "expected": {
+        "context_message_counts": [
+          1,
+          1
+        ],
+        "context_message_role": "user",
+        "system_messages_unchanged": true,
+        "binding_retained": true,
+        "bindings_cleared": true
+      }
+    },
+    {
+      "case_id": "concurrent-run-isolation",
+      "input": {
+        "scenario": "concurrent_isolation"
+      },
+      "expected": {
+        "isolated": true,
+        "context_message_counts": [
+          1,
+          1
+        ],
+        "bindings_cleared": true
+      }
+    },
+    {
+      "case_id": "runtime-provider-independence",
+      "input": {
+        "scenario": "runtime_provider_independence",
+        "work": {
+          "objective": "Execute independently of runtime and model provider.",
+          "contexts": [
+            {
+              "role": "subject",
+              "namespace": "project:portable"
+            }
+          ],
+          "steps": [
+            {
+              "step_id": "execute",
+              "agent_id": "worker",
+              "input": "Execute provider-neutral work."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "equivalent_across_runtimes": true,
+        "provider_neutral": true,
+        "bindings_cleared": true
+      }
+    },
+    {
+      "case_id": "two-step-context-aware-work",
+      "input": {
+        "scenario": "work",
+        "work": {
+          "objective": "Draft and finish a homelab update.",
+          "contexts": [
+            {
+              "role": "subject",
+              "namespace": "project:homelab"
+            }
+          ],
+          "steps": [
+            {
+              "step_id": "draft",
+              "agent_id": "writer",
+              "input": "Draft the opening."
+            },
+            {
+              "step_id": "finish",
+              "agent_id": "writer",
+              "input": "Draft the conclusion."
+            }
+          ]
+        }
+      },
+      "expected": {
+        "work_status": "succeeded",
+        "executed_step_ids": [
+          "draft",
+          "finish"
+        ],
+        "run_statuses": [
+          "succeeded",
+          "succeeded"
+        ],
+        "trace_present": [
+          true,
+          true
+        ],
+        "traced_contexts": [
+          [
+            {
+              "role": "subject",
+              "namespace": "project:homelab"
+            }
+          ],
+          [
+            {
+              "role": "subject",
+              "namespace": "project:homelab"
+            }
+          ]
+        ],
+        "bindings_cleared": true,
+        "runtime_context_present": [
+          true,
+          true
+        ],
+        "runtime_required": [
+          true,
+          true
+        ],
+        "distinct_run_ids": true
+      }
+    }
+  ]
+}
