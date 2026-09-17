@@ -18,6 +18,10 @@ The platform currently includes:
 - persistent Memory & Recall capabilities;
 - lexical-first retrieval with SQLite FTS5/BM25;
 - explicit retrieval ACCEPT / ABSTAIN policy;
+- deterministic Work API and sequential orchestration;
+- Eval-as-Code through a platform-owned Evaluation Plane;
+- source-neutral Context IR and deterministic context preparation/injection;
+- structured context preparation trace evidence;
 - structured observability;
 - persistent systemd-based deployment;
 - a trusted self-development boundary;
@@ -71,6 +75,55 @@ DSH
  -> final response
 ```
 
+## Validated context preparation pipeline
+
+```text
+Work / WorkStep
+      |
+      v
+explicit ContextRef[]
+      |
+      v
+DeterministicRecallPlanner
+      |
+      v
+ContextProviderContract
+      |
+      v
+MemoryContextProvider
+      |
+      v
+ContextContribution[]
+      |
+      v
+DeterministicContextAssembler
+      |
+      v
+ContextBundle
+      |
+      v
+DeterministicContextBudgetPolicy
+      |
+      v
+BudgetedContextBundle
+      |
+      v
+MarkdownContextRenderer
+      |
+      v
+RenderedContext
+      |
+      v
+ReferenceMessageInjector
+      |
+      v
+ModelRequest
+```
+
+The M10 baseline keeps model-facing context separate from operational trace
+evidence and never promotes retrieved context into a new system message by
+structure.
+
 ## Implemented
 
 - RuntimeContract
@@ -94,6 +147,19 @@ DSH
 - `memory_remember`
 - `memory_recall`
 - explicit scope isolation
+- WorkRequest / WorkResult domain models
+- deterministic sequential WorkOrchestrator
+- `/work` API boundary
+- EvaluationContract / EvaluationCase / EvaluationResult
+- EvalRunner
+- RecallPlannerContract / DeterministicRecallPlanner
+- ContextProviderContract / MemoryContextProvider
+- ContextAssemblerContract / DeterministicContextAssembler
+- ContextBudgetPolicyContract / DeterministicContextBudgetPolicy
+- TokenEstimatorContract / Utf8ByteTokenEstimator
+- ContextRendererContract / MarkdownContextRenderer
+- ContextInjectorContract / ReferenceMessageInjector
+- ContextPreparationTrace / ContextTraceBuilder
 - explicit ACCEPT / ABSTAIN recall semantics
 - structured observability events
 - Prometheus metrics
@@ -164,10 +230,10 @@ curl http://127.0.0.1:8001/metrics
 
 ```bash
 python -m compileall -q src tests scripts
-ruff check src tests scripts
-ruff format --check src tests scripts
-mypy src
-pytest -v
+python -m ruff check src tests scripts
+python -m ruff format --check src tests scripts
+python -m mypy src
+python -m pytest -v
 python -m build
 git diff --check
 ```
@@ -238,8 +304,82 @@ Embeddings, vector databases, hybrid retrieval, reranking and automatic memory e
 
 See ADR-0005 and `docs/evidence/m7-memory-recall-results.md`.
 
+### M8 — Evaluation Plane / Eval-as-Code
+
+- [x] platform-owned EvaluationContract.
+- [x] EvaluationCase / EvaluationResult canonical models.
+- [x] deterministic EvalRunner.
+- [x] PASS / FAIL / ERROR semantics.
+- [x] machine-readable evidence artifacts.
+- [x] evaluation kept distinct from observability, benchmark, tests and guardrails.
+
+The guiding separation is:
+
+```text
+Eval != Observability != Benchmark != Test != Guardrail
+```
+
+See ADR-0006.
+
+### M9 — Work API and deterministic orchestration
+
+- [x] WorkRequest / WorkResult boundary.
+- [x] explicit ContextRef allow-list attached to Work.
+- [x] deterministic sequential WorkOrchestrator.
+- [x] fail-fast behavior on the first failed step.
+- [x] additive `/work` API.
+- [x] contextual recall experiment with explicit namespace isolation.
+
+The guiding separation is:
+
+```text
+Work != Plan != Run != Orchestrator != Runtime != Agent
+```
+
+See ADR-0007.
+
+### M10 — Context Preparation + Injection V0
+
+- [x] source-neutral canonical Context IR.
+- [x] deterministic RecallPlannerContract.
+- [x] Memory as the first ContextProvider implementation.
+- [x] deterministic context assembly.
+- [x] bounded deterministic context budgeting.
+- [x] provider-neutral deterministic Markdown rendering.
+- [x] privilege-safe injection at the canonical ModelRequest boundary.
+- [x] structured ContextPreparationTrace evidence.
+- [x] 8/8 Eval-as-Code acceptance cases passing.
+- [x] deterministic end-to-end LinkedIn + Homelab smoke.
+- [x] ADR-0008 accepted.
+
+The guiding separation is:
+
+```text
+Context Source
+!= Memory
+!= Retrieval
+!= Assembly
+!= Budgeting
+!= Rendering
+!= Injection
+```
+
+Model-facing context and operational trace evidence remain separate.
+
+See ADR-0008 and
+`docs/evidence/m10-context-preparation-experiment-results.md`.
+
 ## Next steps
 
-Continue measuring the lexical retrieval baseline before promoting additional retrieval complexity.
+The next candidate milestone is **M11 — Context-Aware Work Execution V0**.
 
-Dense retrieval, hybrid retrieval, reranking and automatic context injection remain candidates only when evidence demonstrates a requirement gap or measurable improvement.
+M11 should wire the accepted M10 context-preparation pipeline into actual
+WorkStep execution so explicit Work contexts participate in the real Run /
+Runtime path. It should also evaluate whether a first-class `ExecutionContext`
+earns its place or whether a simpler boundary is sufficient.
+
+The default `/work` execution path is therefore not yet context-aware end to end.
+
+Dense retrieval, hybrid retrieval, reranking, automatic context selection,
+LLM-based planning/compression and other retrieval complexity remain deferred
+until evidence demonstrates a requirement gap or measurable improvement.
