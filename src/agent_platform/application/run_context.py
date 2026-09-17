@@ -11,7 +11,22 @@ class InMemoryRunContextBindings:
 
     def __init__(self) -> None:
         self._bindings: dict[UUID, ContextPreparationResult] = {}
+        self._required: set[UUID] = set()
         self._lock = RLock()
+
+    def require(
+        self,
+        run_id: UUID,
+    ) -> None:
+        with self._lock:
+            self._required.add(run_id)
+
+    def is_required(
+        self,
+        run_id: UUID,
+    ) -> bool:
+        with self._lock:
+            return run_id in self._required
 
     def bind(
         self,
@@ -43,3 +58,7 @@ class InMemoryRunContextBindings:
     ) -> None:
         with self._lock:
             self._bindings.pop(run_id, None)
+            self._required.discard(run_id)
+
+
+default_run_context_bindings = InMemoryRunContextBindings()
