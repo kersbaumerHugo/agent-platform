@@ -19,7 +19,14 @@ from agent_platform.adapters.models.openrouter import (
     OpenRouterModelAdapter,
 )
 from agent_platform.adapters.observability.default import default_observer
+from agent_platform.application.context_injector import (
+    ReferenceMessageInjector,
+)
 from agent_platform.application.model_gateway import ModelGateway
+from agent_platform.application.run_context import (
+    InMemoryRunContextBindings,
+    default_run_context_bindings,
+)
 from agent_platform.domain.model import (
     MessageRole,
     ModelMessage,
@@ -83,6 +90,14 @@ router = APIRouter(
     prefix="/internal/v1",
     tags=["internal-model-gateway"],
 )
+
+
+def get_run_context_bindings() -> InMemoryRunContextBindings:
+    return default_run_context_bindings
+
+
+def get_context_injector() -> ReferenceMessageInjector:
+    return ReferenceMessageInjector()
 
 
 def get_model_gateway() -> ModelGateway:
@@ -310,6 +325,46 @@ def map_messages(
     return mapped
 
 
+def inject_bound_context(
+    request: ModelRequest,
+    bindings: InMemoryRunContextBindings,
+    injector: ReferenceMessageInjector,
+) -> ModelRequest:
+    prepared = bindings.resolve(request.run_id)
+
+    if prepared is None:
+        if bindings.is_required(request.run_id):
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "type": "required_context_binding_missing",
+                    "run_id": str(request.run_id),
+                },
+            )
+
+        return request
+
+    expected_injector = prepared.trace.injection
+
+    if expected_injector.injector != injector.name or expected_injector.version != injector.version:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "type": "context_injector_mismatch",
+                "expected": {
+                    "name": expected_injector.injector,
+                    "version": expected_injector.version,
+                },
+                "actual": {
+                    "name": injector.name,
+                    "version": injector.version,
+                },
+            },
+        )
+
+    return injector.inject(request, prepared.rendered)
+
+
 def stream_result(
     result: ModelResult,
 ) -> Iterator[str]:
@@ -386,6 +441,14 @@ def stream_result(
 async def chat_completions(
     request: OpenAICompatRequest,
     gateway: Annotated[ModelGateway, Depends(get_model_gateway)],
+    bindings: Annotated[
+        InMemoryRunContextBindings,
+        Depends(get_run_context_bindings),
+    ],
+    injector: Annotated[
+        ReferenceMessageInjector,
+        Depends(get_context_injector),
+    ],
     _: Annotated[None, Depends(require_gateway_auth)],
     x_deepseek_harness_session_id: Annotated[
         str | None,
@@ -398,13 +461,23 @@ async def chat_completions(
             detail="M2b compatibility endpoint requires streaming.",
         )
 
+    run_id = resolve_run_id(
+        x_deepseek_harness_session_id,
+    )
+
     model_request = ModelRequest(
-        run_id=resolve_run_id(x_deepseek_harness_session_id),
+        run_id=run_id,
         messages=map_messages(request.messages),
         tools=map_tools(request.tools),
         temperature=request.temperature,
         max_tokens=request.max_tokens,
     )
+    model_request = inject_bound_context(
+        model_request,
+        bindings,
+        injector,
+    )
+
     try:
         result = await gateway.generate(model_request)
     except (OpenRouterError, LocalOpenAIError) as exc:
