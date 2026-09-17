@@ -1,0 +1,379 @@
+{
+  "case_count": 9,
+  "deterministic_reproducibility": true,
+  "duration_seconds": 0.009179042011965066,
+  "results": [
+    {
+      "case_id": "context-aware-step",
+      "evaluator": "context_aware_work_execution",
+      "metadata": {
+        "facts": {
+          "bindings_cleared": true,
+          "distinct_run_ids": true,
+          "executed_step_ids": [
+            "draft"
+          ],
+          "run_statuses": [
+            "succeeded"
+          ],
+          "runtime_context_present": [
+            true
+          ],
+          "runtime_required": [
+            true
+          ],
+          "trace_present": [
+            true
+          ],
+          "traced_contexts": [
+            [
+              {
+                "namespace": "project:homelab",
+                "role": "subject"
+              }
+            ]
+          ],
+          "work_contexts": [
+            {
+              "namespace": "project:homelab",
+              "role": "subject"
+            }
+          ],
+          "work_status": "succeeded"
+        },
+        "scenario": "work"
+      },
+      "metrics": {
+        "bindings_cleared_match": 1.0,
+        "distinct_run_ids_match": 1.0,
+        "executed_step_ids_match": 1.0,
+        "run_statuses_match": 1.0,
+        "runtime_context_present_match": 1.0,
+        "runtime_required_match": 1.0,
+        "trace_present_match": 1.0,
+        "traced_contexts_match": 1.0,
+        "work_contexts_match": 1.0,
+        "work_status_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "no-context",
+      "evaluator": "context_aware_work_execution",
+      "metadata": {
+        "facts": {
+          "bindings_cleared": true,
+          "distinct_run_ids": true,
+          "executed_step_ids": [
+            "execute"
+          ],
+          "run_statuses": [
+            "succeeded"
+          ],
+          "runtime_context_present": [
+            false
+          ],
+          "runtime_required": [
+            false
+          ],
+          "trace_present": [
+            false
+          ],
+          "traced_contexts": [
+            []
+          ],
+          "work_contexts": [],
+          "work_status": "succeeded"
+        },
+        "scenario": "work"
+      },
+      "metrics": {
+        "bindings_cleared_match": 1.0,
+        "distinct_run_ids_match": 1.0,
+        "executed_step_ids_match": 1.0,
+        "run_statuses_match": 1.0,
+        "runtime_context_present_match": 1.0,
+        "runtime_required_match": 1.0,
+        "trace_present_match": 1.0,
+        "traced_contexts_match": 1.0,
+        "work_contexts_match": 1.0,
+        "work_status_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "explicit-context-allow-list",
+      "evaluator": "context_aware_work_execution",
+      "metadata": {
+        "facts": {
+          "bindings_cleared": true,
+          "distinct_run_ids": true,
+          "executed_step_ids": [
+            "draft"
+          ],
+          "run_statuses": [
+            "succeeded"
+          ],
+          "runtime_context_present": [
+            true
+          ],
+          "runtime_required": [
+            true
+          ],
+          "trace_present": [
+            true
+          ],
+          "traced_contexts": [
+            [
+              {
+                "namespace": "app:linkedin",
+                "role": "delivery"
+              },
+              {
+                "namespace": "project:homelab",
+                "role": "subject"
+              }
+            ]
+          ],
+          "work_contexts": [
+            {
+              "namespace": "app:linkedin",
+              "role": "delivery"
+            },
+            {
+              "namespace": "project:homelab",
+              "role": "subject"
+            }
+          ],
+          "work_status": "succeeded"
+        },
+        "scenario": "work"
+      },
+      "metrics": {
+        "bindings_cleared_match": 1.0,
+        "executed_step_ids_match": 1.0,
+        "run_statuses_match": 1.0,
+        "runtime_context_present_match": 1.0,
+        "runtime_required_match": 1.0,
+        "trace_present_match": 1.0,
+        "traced_contexts_match": 1.0,
+        "work_contexts_match": 1.0,
+        "work_status_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "runtime-failure-cleanup",
+      "evaluator": "context_aware_work_execution",
+      "metadata": {
+        "facts": {
+          "bindings_cleared": true,
+          "distinct_run_ids": true,
+          "executed_step_ids": [
+            "execute"
+          ],
+          "run_statuses": [
+            "failed"
+          ],
+          "runtime_context_present": [
+            true
+          ],
+          "runtime_required": [
+            true
+          ],
+          "trace_present": [
+            true
+          ],
+          "traced_contexts": [
+            [
+              {
+                "namespace": "project:homelab",
+                "role": "subject"
+              }
+            ]
+          ],
+          "work_contexts": [
+            {
+              "namespace": "project:homelab",
+              "role": "subject"
+            }
+          ],
+          "work_status": "failed"
+        },
+        "scenario": "work"
+      },
+      "metrics": {
+        "bindings_cleared_match": 1.0,
+        "executed_step_ids_match": 1.0,
+        "run_statuses_match": 1.0,
+        "runtime_context_present_match": 1.0,
+        "runtime_required_match": 1.0,
+        "trace_present_match": 1.0,
+        "traced_contexts_match": 1.0,
+        "work_status_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "missing-required-binding",
+      "evaluator": "context_aware_work_execution",
+      "metadata": {
+        "facts": {
+          "bindings_cleared": true,
+          "gateway_error_type": "required_context_binding_missing",
+          "gateway_status_code": 503
+        },
+        "scenario": "missing_binding"
+      },
+      "metrics": {
+        "bindings_cleared_match": 1.0,
+        "gateway_error_type_match": 1.0,
+        "gateway_status_code_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "multi-turn-binding-reuse",
+      "evaluator": "context_aware_work_execution",
+      "metadata": {
+        "facts": {
+          "binding_retained": true,
+          "bindings_cleared": true,
+          "context_message_counts": [
+            1,
+            1
+          ],
+          "context_message_role": "user",
+          "system_messages_unchanged": true
+        },
+        "scenario": "multi_turn"
+      },
+      "metrics": {
+        "binding_retained_match": 1.0,
+        "bindings_cleared_match": 1.0,
+        "context_message_counts_match": 1.0,
+        "context_message_role_match": 1.0,
+        "system_messages_unchanged_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "concurrent-run-isolation",
+      "evaluator": "context_aware_work_execution",
+      "metadata": {
+        "facts": {
+          "bindings_cleared": true,
+          "context_message_counts": [
+            1,
+            1
+          ],
+          "isolated": true
+        },
+        "scenario": "concurrent_isolation"
+      },
+      "metrics": {
+        "bindings_cleared_match": 1.0,
+        "context_message_counts_match": 1.0,
+        "isolated_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "runtime-provider-independence",
+      "evaluator": "context_aware_work_execution",
+      "metadata": {
+        "facts": {
+          "bindings_cleared": true,
+          "equivalent_across_runtimes": true,
+          "provider_neutral": true
+        },
+        "scenario": "runtime_provider_independence"
+      },
+      "metrics": {
+        "bindings_cleared_match": 1.0,
+        "equivalent_across_runtimes_match": 1.0,
+        "provider_neutral_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    },
+    {
+      "case_id": "two-step-context-aware-work",
+      "evaluator": "context_aware_work_execution",
+      "metadata": {
+        "facts": {
+          "bindings_cleared": true,
+          "distinct_run_ids": true,
+          "executed_step_ids": [
+            "draft",
+            "finish"
+          ],
+          "run_statuses": [
+            "succeeded",
+            "succeeded"
+          ],
+          "runtime_context_present": [
+            true,
+            true
+          ],
+          "runtime_required": [
+            true,
+            true
+          ],
+          "trace_present": [
+            true,
+            true
+          ],
+          "traced_contexts": [
+            [
+              {
+                "namespace": "project:homelab",
+                "role": "subject"
+              }
+            ],
+            [
+              {
+                "namespace": "project:homelab",
+                "role": "subject"
+              }
+            ]
+          ],
+          "work_contexts": [
+            {
+              "namespace": "project:homelab",
+              "role": "subject"
+            }
+          ],
+          "work_status": "succeeded"
+        },
+        "scenario": "work"
+      },
+      "metrics": {
+        "bindings_cleared_match": 1.0,
+        "distinct_run_ids_match": 1.0,
+        "executed_step_ids_match": 1.0,
+        "run_statuses_match": 1.0,
+        "runtime_context_present_match": 1.0,
+        "runtime_required_match": 1.0,
+        "trace_present_match": 1.0,
+        "traced_contexts_match": 1.0,
+        "work_status_match": 1.0
+      },
+      "outcome": "pass",
+      "reason_code": "expectations_met"
+    }
+  ],
+  "suite_id": "m11-context-aware-work-execution-v0",
+  "summary": {
+    "error": 0,
+    "fail": 0,
+    "pass": 9
+  }
+}
