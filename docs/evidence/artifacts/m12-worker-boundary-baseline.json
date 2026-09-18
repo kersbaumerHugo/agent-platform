@@ -1,0 +1,27 @@
+{
+  "baseline_accepted": false,
+  "captured_at": "2026-09-18T15:17:46.762653+00:00",
+  "decision": "stronger_execution_boundary_required",
+  "executor": "SubprocessWorkerExecutor",
+  "git_revision": "f3fa69a9e2eecbd34a3fa92b07878f93842471ee",
+  "platform": "linux",
+  "probe": {
+    "forbidden_env_visible": true,
+    "hard_timeout_enforced": true,
+    "outside_workspace_read_allowed": true,
+    "outside_workspace_write_allowed": true,
+    "tcp_loopback_connect_allowed": true,
+    "unix_socket_connect_allowed": true,
+    "workspace_write_allowed": true
+  },
+  "raw_host_file_contents_included": false,
+  "raw_secret_values_included": false,
+  "suite_id": "m12-worker-boundary-baseline-v0",
+  "violations": {
+    "direct_unix_socket_connect": true,
+    "forbidden_env_visibility": true,
+    "outside_workspace_read": true,
+    "outside_workspace_write": true,
+    "unrestricted_host_tcp_connect": true
+  }
+}
