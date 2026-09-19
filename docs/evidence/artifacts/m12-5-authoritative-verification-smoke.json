@@ -1,0 +1,64 @@
+{
+  "candidate_accepted": true,
+  "checks": [
+    {
+      "id": "syntax",
+      "outcome": "pass"
+    },
+    {
+      "id": "ruff_lint",
+      "outcome": "pass"
+    },
+    {
+      "id": "ruff_format",
+      "outcome": "pass"
+    },
+    {
+      "id": "typecheck",
+      "outcome": "pass"
+    },
+    {
+      "id": "test",
+      "outcome": "pass"
+    },
+    {
+      "id": "package",
+      "outcome": "pass"
+    },
+    {
+      "id": "diff_check",
+      "outcome": "pass"
+    }
+  ],
+  "decision": "authoritative_verification_profile_v0_accepted",
+  "full_repository_gate": {
+    "build": "pass",
+    "compileall": "pass",
+    "git_diff_check": "pass",
+    "mypy_src": "pass",
+    "pytest": "pass",
+    "pytest_passed": 452,
+    "ruff_check": "pass",
+    "ruff_format_check": "pass"
+  },
+  "integrated_smoke": {
+    "checks_passed": 7,
+    "checks_total": 7,
+    "outcome": "pass",
+    "reason_code": "all_checks_passed"
+  },
+  "profile_version": "m12-v0",
+  "security_claims": {
+    "ambient_publication_credentials_forwarded": false,
+    "host_subprocess_isolation_claimed": false,
+    "raw_command_output_persisted_as_evidence": false,
+    "shell_execution_used": false,
+    "verifier_confinement_required_before_publication": true
+  },
+  "targeted_tests": {
+    "authoritative_verifier": 5,
+    "verification_contract": 7,
+    "verification_executor": 7,
+    "verification_profile": 4
+  }
+}
