@@ -1,0 +1,12 @@
+{
+  "decision": "host_gateway_relay_rejected",
+  "probe": {
+    "direct_mcp_reachable": false,
+    "direct_model_gateway_reachable": false,
+    "docker_tcp_2375_reachable": false,
+    "docker_tcp_2376_reachable": false,
+    "host_gateway": "172.18.0.1",
+    "host_ssh_reachable": true
+  },
+  "reason": "An internal Docker bridge still exposed the agent01 SSH listener through the bridge gateway. The M12 V0 sandbox therefore must not depend on host-gateway TCP access for the Model Gateway capability."
+}

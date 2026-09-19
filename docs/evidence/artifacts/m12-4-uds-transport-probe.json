@@ -1,0 +1,10 @@
+{
+  "candidate_accepted": true,
+  "decision": "network_none_plus_unix_socket_transport",
+  "probe": {
+    "gateway_socket_reachable": true,
+    "host_ssh_reachable": false,
+    "internet_reachable": false
+  },
+  "reason": "With Docker --network none, the coding container retained access to an explicitly mounted Unix-domain socket while losing TCP reachability to both the host SSH surface and the Internet."
+}

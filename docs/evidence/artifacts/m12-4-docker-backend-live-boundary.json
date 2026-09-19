@@ -1,0 +1,19 @@
+{
+  "candidate_accepted": true,
+  "decision": "docker_backend_live_boundary_pass",
+  "probe": {
+    "cap_eff": "0000000000000000",
+    "docker_socket_visible": false,
+    "gateway_auth_passed_via_uds": true,
+    "gateway_secret_is_placeholder": true,
+    "gid": 65532,
+    "host_ssh_reachable": false,
+    "internet_reachable": false,
+    "no_new_privileges": true,
+    "publisher_socket_visible": false,
+    "rootfs_write_allowed": false,
+    "uid": 65532,
+    "workspace_write_allowed": true
+  },
+  "violations": {}
+}
