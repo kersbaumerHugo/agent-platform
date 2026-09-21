@@ -6,6 +6,10 @@ from agent_platform.adapters.runtimes.dsh import DSHRuntime
 from agent_platform.adapters.runtimes.fake import FakeRuntime
 from agent_platform.api.composition import build_runtime
 
+from agent_platform.adapters.runtimes.tool_calling import (
+    ToolCallingRuntime,
+)
+
 
 def test_runtime_defaults_to_fake() -> None:
     runtime = build_runtime({})
@@ -111,5 +115,51 @@ def test_unknown_runtime_fails_closed() -> None:
         build_runtime(
             {
                 "AGENT_PLATFORM_RUNTIME": "mystery",
+            }
+        )
+def test_runtime_builds_tool_calling_runtime() -> None:
+    runtime = build_runtime(
+        {
+            "AGENT_PLATFORM_RUNTIME": "tool-calling",
+            "MODEL_PROVIDER": "openrouter",
+            "OPENROUTER_API_KEY": "test-key",
+            "OPENROUTER_MODEL": "test/model",
+            "AGENT_PLATFORM_REPOSITORY_PATH": "/tmp/repository",
+        }
+    )
+
+    assert isinstance(runtime, ToolCallingRuntime)
+    assert runtime.name == "tool-calling"
+    assert runtime._principal_id == "system:agent-runtime"
+
+    assert [
+        definition.name
+        for definition in runtime._registry.definitions()
+    ] == ["repository_inspect"]
+
+
+def test_tool_calling_runtime_requires_model_configuration() -> None:
+    with pytest.raises(
+        ValueError,
+        match="OPENROUTER_API_KEY",
+    ):
+        build_runtime(
+            {
+                "AGENT_PLATFORM_RUNTIME": "tool-calling",
+                "AGENT_PLATFORM_REPOSITORY_PATH": "/tmp/repository",
+            }
+        )
+
+
+def test_tool_calling_runtime_requires_repository_configuration() -> None:
+    with pytest.raises(
+        ValueError,
+        match="AGENT_PLATFORM_REPOSITORY_PATH",
+    ):
+        build_runtime(
+            {
+                "AGENT_PLATFORM_RUNTIME": "tool-calling",
+                "MODEL_PROVIDER": "openrouter",
+                "OPENROUTER_API_KEY": "test-key",
             }
         )
