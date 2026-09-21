@@ -134,7 +134,8 @@ def test_runtime_builds_tool_calling_runtime(
 
     assert isinstance(runtime, ToolCallingRuntime)
     assert runtime.name == "tool-calling"
-    assert runtime._principal_id == "system:agent-runtime"
+    assert runtime._agent_id == "developer-agent"
+    assert runtime._principal_id == "agent:developer-agent"
 
     assert [definition.name for definition in runtime._registry.definitions()] == [
         "repository_inspect"

@@ -63,7 +63,8 @@ from agent_platform.contracts.observability import ObservationContract
 from agent_platform.contracts.runtime import RuntimeContract
 from agent_platform.domain.context_budget import ContextBudget
 
-AGENT_RUNTIME_PRINCIPAL = "system:agent-runtime"
+DEVELOPER_AGENT_ID = "developer-agent"
+DEVELOPER_AGENT_PRINCIPAL = "agent:developer-agent"
 
 
 def build_agent_tool_registry(
@@ -119,7 +120,7 @@ def build_agent_tool_registry(
     authorization = StaticCapabilityAuthorizationPolicy(
         grants=[
             (
-                AGENT_RUNTIME_PRINCIPAL,
+                DEVELOPER_AGENT_PRINCIPAL,
                 "repository.inspect",
             )
         ]
@@ -265,7 +266,8 @@ def _build_tool_calling_runtime(
     return ToolCallingRuntime(
         gateway=gateway,
         registry=registry,
-        principal_id=AGENT_RUNTIME_PRINCIPAL,
+        agent_id=DEVELOPER_AGENT_ID,
+        principal_id=DEVELOPER_AGENT_PRINCIPAL,
     )
 
 
