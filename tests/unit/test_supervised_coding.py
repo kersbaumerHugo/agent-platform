@@ -9,7 +9,6 @@ from agent_platform.adapters.workers.supervised_coding import (
 )
 from agent_platform.application.supervised_coding import (
     CodingBaseRevisionMismatchError,
-    PreparedCodingTask,
     SupervisedCodingService,
 )
 from agent_platform.domain.coding import CodingTask
@@ -21,6 +20,7 @@ from agent_platform.trust.publisher import (
 from agent_platform.worker.session import WorkerDevelopmentTask
 
 TASK_ID = UUID("12000000-0000-4000-8000-000000000002")
+EXECUTION_ID = UUID("12000000-0000-4000-8000-000000000007")
 BASE_REVISION = "9b278bea9a88085454f60a97e10c76495da0d7b1"
 OTHER_REVISION = "a" * 40
 
@@ -58,12 +58,16 @@ class RecordingProducer:
     ) -> None:
         self.change_set = change_set
         self.tasks: list[CodingTask] = []
+        self.execution_ids: list[UUID] = []
 
     async def produce(
         self,
         task: CodingTask,
+        *,
+        execution_id: UUID,
     ) -> ChangeSet:
         self.tasks.append(task)
+        self.execution_ids.append(execution_id)
         return self.change_set
 
 
@@ -92,11 +96,10 @@ async def test_supervised_coding_service_produces_unverified_change_set() -> Non
 
     result = await service.execute(task)
 
-    assert result == PreparedCodingTask(
-        task_id=TASK_ID,
-        change_set=change_set,
-    )
+    assert result.task_id == TASK_ID
+    assert result.change_set == change_set
     assert producer.tasks == [task]
+    assert producer.execution_ids == [result.execution_id]
 
 
 @pytest.mark.asyncio
@@ -137,11 +140,15 @@ async def test_worker_adapter_maps_canonical_task_to_worker_task() -> None:
     session = RecordingWorkerSession(change_set)
     producer = WorkerCodingChangeProducer(session=session)
 
-    result = await producer.produce(task)
+    result = await producer.produce(
+        task,
+        execution_id=EXECUTION_ID,
+    )
 
     assert result is change_set
     assert session.tasks == [
         WorkerDevelopmentTask(
+            execution_id=EXECUTION_ID,
             goal=task.goal,
             branch_name=f"coding/{TASK_ID}",
             commit_message=f"chore: apply supervised coding task {TASK_ID}",

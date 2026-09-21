@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Protocol
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from agent_platform.domain.coding import CodingTask
 from agent_platform.trust.publisher import ChangeSet
@@ -14,6 +14,8 @@ class CodingChangeProducer(Protocol):
     async def produce(
         self,
         task: CodingTask,
+        *,
+        execution_id: UUID,
     ) -> ChangeSet: ...
 
 
@@ -37,6 +39,7 @@ class PreparedCodingTask:
     """Application result ready for a future authoritative verification stage."""
 
     task_id: UUID
+    execution_id: UUID
     change_set: ChangeSet
 
 
@@ -54,7 +57,12 @@ class SupervisedCodingService:
         self,
         task: CodingTask,
     ) -> PreparedCodingTask:
-        change_set = await self._producer.produce(task)
+        execution_id = uuid4()
+
+        change_set = await self._producer.produce(
+            task,
+            execution_id=execution_id,
+        )
 
         if change_set.base_revision != task.expected_base_revision:
             raise CodingBaseRevisionMismatchError(
@@ -64,5 +72,6 @@ class SupervisedCodingService:
 
         return PreparedCodingTask(
             task_id=task.task_id,
+            execution_id=execution_id,
             change_set=change_set,
         )

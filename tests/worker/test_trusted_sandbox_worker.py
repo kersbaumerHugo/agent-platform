@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -26,6 +26,8 @@ from agent_platform.worker.session import (
     WorkerExecutionRequest,
 )
 
+EXECUTION_ID = UUID("12000000-0000-4000-8000-000000000009")
+
 
 @pytest.mark.asyncio
 async def test_client_and_server_cross_narrow_socket_boundary(
@@ -37,7 +39,7 @@ async def test_client_and_server_cross_narrow_socket_boundary(
     workspace = root / "worker-example"
     workspace.mkdir()
 
-    calls: list[tuple[str, Path]] = []
+    calls: list[tuple[UUID, str, Path]] = []
 
     class Backend:
         async def execute(
@@ -48,6 +50,7 @@ async def test_client_and_server_cross_narrow_socket_boundary(
         ) -> SandboxExecutionOutcome:
             calls.append(
                 (
+                    request.execution_id,
                     request.goal,
                     workspace,
                 )
@@ -79,6 +82,7 @@ async def test_client_and_server_cross_narrow_socket_boundary(
             WorkerExecutionRequest(
                 goal="Fix the test.",
                 workspace=workspace,
+                execution_id=EXECUTION_ID,
             )
         )
     finally:
@@ -87,6 +91,7 @@ async def test_client_and_server_cross_narrow_socket_boundary(
     assert result.summary == ("trusted sandbox completed")
     assert calls == [
         (
+            EXECUTION_ID,
             "Fix the test.",
             workspace.resolve(),
         )

@@ -10,7 +10,9 @@ from agent_platform.application.supervised_coding_publication import (
     CodingPublicationIdentityMismatchError,
     SupervisedCodingPublicationService,
 )
-from agent_platform.domain.coding import CodingTask
+from agent_platform.domain.coding import (
+    CodingTask,
+)
 from agent_platform.trust.change_set_identity import identify_change_set
 from agent_platform.trust.publisher import (
     ChangeSet,
@@ -30,6 +32,7 @@ from agent_platform.trust.verification_profile import VerificationCheck
 from agent_platform.trust.verified_publication import VerifiedPublicationResult
 
 TASK_ID = UUID("12000000-0000-4000-8000-000000000006")
+EXECUTION_ID = UUID("12000000-0000-4000-8000-000000000008")
 BASE_REVISION = "a" * 40
 
 
@@ -127,6 +130,7 @@ async def test_supervised_flow_publishes_only_verified_change_set() -> None:
     preparation = RecordingPreparation(
         prepared=PreparedCodingTask(
             task_id=TASK_ID,
+            execution_id=EXECUTION_ID,
             change_set=change_set,
         )
     )
@@ -135,7 +139,7 @@ async def test_supervised_flow_publishes_only_verified_change_set() -> None:
     )
     publisher = RecordingPublisher(
         result=VerifiedPublicationResult(
-            reference="pr:https://example.invalid/pull/123",
+            reference="https://github.com/kersbaumerHugo/agent-platform/pull/123",
             identity=verified.identity,
         )
     )
@@ -147,8 +151,16 @@ async def test_supervised_flow_publishes_only_verified_change_set() -> None:
 
     result = await service.execute(task)
 
-    assert result.reference == "pr:https://example.invalid/pull/123"
-    assert result.identity == verified.identity
+    assert result.task_id == TASK_ID
+    assert result.execution_id == EXECUTION_ID
+    assert result.base_revision == BASE_REVISION
+    assert result.change_set_identity == verified.identity.reference
+    assert result.changed_paths == ("src/example.py",)
+    assert result.verification_profile_version == "m12-v0"
+    assert result.verification_outcome.value == "pass"
+    assert result.publication_outcome.value == "published"
+    assert result.publication_reference.endswith("/pull/123")
+    assert result.pull_request_number == 123
     assert preparation.tasks == [task]
     assert verification.change_sets == [change_set]
     assert publisher.verified_inputs == [verified]
@@ -161,6 +173,7 @@ async def test_verification_rejection_blocks_publication() -> None:
     preparation = RecordingPreparation(
         prepared=PreparedCodingTask(
             task_id=TASK_ID,
+            execution_id=EXECUTION_ID,
             change_set=change_set,
         )
     )
@@ -220,6 +233,7 @@ async def test_publication_identity_mismatch_fails_closed() -> None:
         preparation=RecordingPreparation(
             prepared=PreparedCodingTask(
                 task_id=TASK_ID,
+                execution_id=EXECUTION_ID,
                 change_set=change_set,
             )
         ),
@@ -228,7 +242,7 @@ async def test_publication_identity_mismatch_fails_closed() -> None:
         ),
         publisher=RecordingPublisher(
             result=VerifiedPublicationResult(
-                reference="pr:https://example.invalid/pull/123",
+                reference="https://github.com/kersbaumerHugo/agent-platform/pull/123",
                 identity=identify_change_set(different),
             )
         ),

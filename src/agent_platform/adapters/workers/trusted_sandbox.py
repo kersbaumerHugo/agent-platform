@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from uuid import uuid4
 
 from agent_platform.trust.sandbox_execution import (
     SandboxExecutionRequest,
@@ -45,10 +44,9 @@ class TrustedSandboxWorkerExecutor:
         request: WorkerExecutionRequest,
     ) -> WorkerExecutionResult:
         workspace_name = self._workspace_name(request.workspace)
-        execution_id = uuid4()
 
         sandbox_request = SandboxExecutionRequest(
-            execution_id=execution_id,
+            execution_id=request.execution_id,
             workspace_name=workspace_name,
             goal=request.goal,
         )
@@ -104,7 +102,7 @@ class TrustedSandboxWorkerExecutor:
                     "Trusted sandbox executor returned invalid response."
                 ) from exc
 
-            if response.execution_id is not None and response.execution_id != execution_id:
+            if response.execution_id is not None and response.execution_id != request.execution_id:
                 raise TrustedSandboxWorkerError("Trusted sandbox response execution_id mismatch.")
 
             if response.status is SandboxExecutionStatus.ERROR:
@@ -112,7 +110,7 @@ class TrustedSandboxWorkerExecutor:
                     f"Trusted sandbox execution failed: {response.error_code}"
                 )
 
-            if response.execution_id != execution_id:
+            if response.execution_id != request.execution_id:
                 raise TrustedSandboxWorkerError(
                     "Trusted sandbox accepted response without matching execution_id."
                 )

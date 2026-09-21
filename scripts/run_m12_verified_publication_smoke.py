@@ -49,7 +49,11 @@ class StaticCodingProducer:
     async def produce(
         self,
         task: CodingTask,
+        *,
+        execution_id: UUID,
     ) -> ChangeSet:
+        del execution_id
+
         if task.expected_base_revision != self._change_set.base_revision:
             raise RuntimeError("Static producer received an unexpected base revision.")
 
@@ -214,9 +218,9 @@ async def _run() -> int:
             publisher=verified_publisher,
         )
 
-        publication = await service.execute(task)
+        coding_result = await service.execute(task)
 
-        published_commit = publication.reference.removeprefix("git:")
+        published_commit = coding_result.publication_reference.removeprefix("git:")
         actual_head = _git(publication_repo, "rev-parse", "HEAD")
         actual_parent = _git(publication_repo, "rev-parse", "HEAD^")
         actual_branch = _git(
@@ -249,7 +253,7 @@ async def _run() -> int:
                 len((AuthoritativeVerificationProfile()).steps) == 7
             ),
             "publication_identity_matches_verified_identity": (
-                publication.identity == expected_identity
+                coding_result.change_set_identity == expected_identity.reference
             ),
             "published_commit_matches_reference": (actual_head == published_commit),
             "published_commit_parent_matches_trusted_base": (actual_parent == base_revision),
