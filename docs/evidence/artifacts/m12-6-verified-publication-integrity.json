@@ -1,0 +1,71 @@
+{
+  "authoritative_profile": {
+    "checks_complete": true,
+    "outcome": "pass",
+    "version": "m12-v0"
+  },
+  "candidate_accepted": true,
+  "decision": "m12_6_verified_changeset_publication_integrity_accepted",
+  "full_repository_gate": {
+    "build": "pass",
+    "compileall": "pass",
+    "git_diff_check": "pass",
+    "mypy_src": "pass",
+    "pytest": "pass",
+    "pytest_passed": 482,
+    "ruff_check": "pass",
+    "ruff_format_check": "pass"
+  },
+  "hardened_verifier_live_smoke": {
+    "candidate_accepted": true,
+    "checks": {
+      "authoritative_checks_complete": true,
+      "authoritative_profile_passed": true,
+      "authority_sockets_absent": true,
+      "fixture_content_unchanged": true,
+      "fixture_remains_uncommitted": true,
+      "git_head_unchanged": true,
+      "git_metadata_read_only": true,
+      "network_none": true,
+      "no_new_privileges_and_zero_effective_caps": true,
+      "rootfs_read_only": true,
+      "workspace_write_allowed": true
+    },
+    "decision": "hardened_authoritative_verifier_boundary_pass",
+    "profile_outcome": "pass",
+    "profile_version": "m12-v0"
+  },
+  "limitations": [
+    "The verifier container is hardened Docker inside an unprivileged LXC, not VM-equivalent isolation.",
+    "The verifier image is execution-pinned by exact image ID; the build is not claimed to be bit-for-bit reproducible.",
+    "The legacy trusted publisher remains a lower-level trusted authority; M12.6 constrains the supervised coding application path to VerifiedChangeSet publication."
+  ],
+  "publication_binding_smoke": {
+    "candidate_accepted": true,
+    "change_set_identity": "v1:sha256:4c55e4fac272712767c60fac496a23273045f132d857624d5350ef1b4de09ffa",
+    "checks": {
+      "authoritative_profile_evidence_complete": true,
+      "publication_identity_matches_verified_identity": true,
+      "published_branch_matches_change_set": true,
+      "published_changed_paths_match_change_set": true,
+      "published_commit_matches_reference": true,
+      "published_commit_message_matches_change_set": true,
+      "published_commit_parent_matches_trusted_base": true,
+      "published_content_matches_change_set": true,
+      "trusted_baseline_remains_unchanged": true
+    },
+    "decision": "same_verified_changeset_reached_trusted_publication"
+  },
+  "security_scope": {
+    "human_merge_authority_preserved": true,
+    "post_verification_changeset_revalidation_required": true,
+    "verifier_docker_socket_exposed": false,
+    "verifier_git_metadata_writable": false,
+    "verifier_network_access": false,
+    "verifier_publication_credentials_exposed": false,
+    "verifier_publisher_socket_exposed": false,
+    "verifier_rootfs_writable": false,
+    "verifier_workspace_writable": true
+  },
+  "verifier_image": "sha256:74109157bffb9adb5f04ea13f2b227c3152f098bf9609b154f1eb670198f1578"
+}
