@@ -34,6 +34,9 @@ from agent_platform.adapters.tools.coding import CodingTool
 from agent_platform.adapters.tools.repository import (
     RepositoryInspectionTool,
 )
+from agent_platform.api.coding_composition import (
+    build_supervised_coding_capability,
+)
 from agent_platform.application.capability_authorization import (
     StaticCapabilityAuthorizationPolicy,
 )
@@ -278,6 +281,13 @@ def build_runtime(
         return _build_dsh_runtime(values)
 
     if runtime_name == "tool-calling":
+        if coding_capability is None and _configured_bool(
+            values,
+            "AGENT_PLATFORM_CODING_ENABLED",
+            default=False,
+        ):
+            coding_capability = build_supervised_coding_capability(values)
+
         return _build_tool_calling_runtime(
             values,
             coding_capability=coding_capability,
@@ -368,6 +378,30 @@ def build_context_preparation(
     )
 
     return prepare_context, budget
+
+
+def _configured_bool(
+    env: Mapping[str, str],
+    name: str,
+    *,
+    default: bool,
+) -> bool:
+    raw = (
+        env.get(
+            name,
+            "true" if default else "false",
+        )
+        .strip()
+        .lower()
+    )
+
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+
+    if raw in {"0", "false", "no", "off"}:
+        return False
+
+    raise ValueError(f"{name} must be a boolean.")
 
 
 def _configured_int(

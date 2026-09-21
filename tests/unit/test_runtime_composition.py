@@ -170,3 +170,22 @@ def test_tool_calling_runtime_requires_repository_configuration() -> None:
                 "OPENROUTER_API_KEY": "test-key",
             }
         )
+
+
+def test_coding_runtime_opt_in_requires_coding_configuration(
+    tmp_path,
+) -> None:
+    with pytest.raises(
+        ValueError,
+        match="AGENT_PLATFORM_CODING_REPOSITORY_URL",
+    ):
+        build_runtime(
+            {
+                "AGENT_PLATFORM_RUNTIME": "tool-calling",
+                "MODEL_PROVIDER": "openrouter",
+                "OPENROUTER_API_KEY": "test-key",
+                "AGENT_PLATFORM_REPOSITORY_PATH": str(tmp_path),
+                "AGENT_PLATFORM_REPOWISE_COMMAND": "python",
+                "AGENT_PLATFORM_CODING_ENABLED": "true",
+            }
+        )
