@@ -75,6 +75,57 @@ class MismatchedTool:
         )
 
 
+class PrincipalRecordingTool:
+    def __init__(self) -> None:
+        self.principal_ids: list[str | None] = []
+
+    @property
+    def definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="principal-recording",
+            description="Record the invocation principal.",
+            input_schema={},
+            output_schema={},
+        )
+
+    async def invoke(
+        self,
+        request: ToolRequest,
+    ) -> ToolResult:
+        self.principal_ids.append(request.principal_id)
+
+        return ToolResult(
+            run_id=request.run_id,
+            tool_name=self.definition.name,
+            output={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_tool_evaluator_uses_stable_system_principal() -> None:
+    tool = PrincipalRecordingTool()
+    evaluator = ToolEvaluator([tool])
+
+    await evaluator.evaluate(
+        EvaluationCase(
+            case_id="case-one",
+            input={"tool_name": "principal-recording"},
+        )
+    )
+
+    await evaluator.evaluate(
+        EvaluationCase(
+            case_id="case-two",
+            input={"tool_name": "principal-recording"},
+        )
+    )
+
+    assert tool.principal_ids == [
+        "system:tool-evaluator",
+        "system:tool-evaluator",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_tool_evaluator_passes_expected_output() -> None:
     evaluator = ToolEvaluator([EchoTool()])

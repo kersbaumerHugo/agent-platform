@@ -62,7 +62,7 @@ class ToolEvaluator:
                 NAMESPACE_URL,
                 f"agent-platform-eval:{case.case_id}",
             ),
-            principal_id=f"evaluation:{case.case_id}",
+            principal_id="system:tool-evaluator",
             arguments=evaluation_input.arguments,
         )
 
