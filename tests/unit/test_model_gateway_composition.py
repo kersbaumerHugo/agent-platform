@@ -122,3 +122,49 @@ def test_unknown_model_provider_fails_closed() -> None:
             },
             observer=NoopObserver(),
         )
+
+
+def test_local_provider_uses_configured_timeout() -> None:
+    gateway = build_model_gateway(
+        {
+            "MODEL_PROVIDER": "local",
+            "LOCAL_MODEL_API_KEY": "local-key",
+            "LOCAL_MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+            "LOCAL_MODEL_NAME": "local-model",
+            "LOCAL_MODEL_TIMEOUT_SECONDS": "180",
+        },
+        observer=NoopObserver(),
+    )
+
+    assert isinstance(
+        gateway._model,
+        LocalOpenAIModelAdapter,
+    )
+    assert gateway._model._timeout_seconds == 180.0
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    (
+        "invalid",
+        "0",
+        "-1",
+    ),
+)
+def test_local_provider_rejects_invalid_timeout(
+    timeout: str,
+) -> None:
+    with pytest.raises(
+        ValueError,
+        match="LOCAL_MODEL_TIMEOUT_SECONDS",
+    ):
+        build_model_gateway(
+            {
+                "MODEL_PROVIDER": "local",
+                "LOCAL_MODEL_API_KEY": "local-key",
+                "LOCAL_MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+                "LOCAL_MODEL_NAME": "local-model",
+                "LOCAL_MODEL_TIMEOUT_SECONDS": timeout,
+            },
+            observer=NoopObserver(),
+        )

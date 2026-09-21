@@ -114,6 +114,7 @@ class ToolCallingRuntime:
                 run_id=request.run_id,
                 messages=messages,
                 tools=[],
+                max_tokens=512,
             )
         )
 

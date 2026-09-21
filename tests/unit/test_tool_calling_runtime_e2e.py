@@ -161,12 +161,14 @@ async def test_agent_executes_repository_capability_through_tool_runtime() -> No
     first_request = gateway.requests[0]
 
     assert first_request.run_id == result.run_id
+    assert first_request.max_tokens is None
     assert [tool.name for tool in first_request.tools] == ["repository_inspect"]
 
     final_request = gateway.requests[1]
 
     assert final_request.run_id == result.run_id
     assert final_request.tools == []
+    assert final_request.max_tokens == 512
 
     assert [message.role for message in final_request.messages] == [
         MessageRole.USER,

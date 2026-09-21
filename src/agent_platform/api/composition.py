@@ -201,12 +201,25 @@ def build_model_gateway(
         if not model:
             raise ValueError("LOCAL_MODEL_NAME is not configured.")
 
+        timeout_text = values.get(
+            "LOCAL_MODEL_TIMEOUT_SECONDS",
+            "90",
+        ).strip()
+
+        try:
+            timeout_seconds = float(timeout_text)
+        except ValueError as exc:
+            raise ValueError("LOCAL_MODEL_TIMEOUT_SECONDS must be a number.") from exc
+
+        if timeout_seconds <= 0:
+            raise ValueError("LOCAL_MODEL_TIMEOUT_SECONDS must be greater than 0.")
+
         return ModelGateway(
             LocalOpenAIModelAdapter(
                 api_key=api_key,
                 model=model,
                 base_url=base_url,
-                timeout_seconds=90.0,
+                timeout_seconds=timeout_seconds,
                 enable_thinking=False,
             ),
             observer=observer,
