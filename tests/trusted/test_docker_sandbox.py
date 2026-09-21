@@ -129,6 +129,10 @@ async def test_backend_builds_fixed_hardened_command(
         command,
         ("--cpus", "1"),
     )
+    assert contains_all(
+        command,
+        ("--tmpfs", "/tmp:rw,nosuid,nodev,size=16m"),
+    )
 
     assert contains_all(
         command,
