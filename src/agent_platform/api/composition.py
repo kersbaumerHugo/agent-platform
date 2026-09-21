@@ -6,6 +6,15 @@ from agent_platform.adapters.memory.context_provider import (
     MemoryContextProvider,
 )
 from agent_platform.adapters.memory.sqlite import SQLiteFTSRetrieval
+from agent_platform.adapters.models.local_openai import (
+    LocalOpenAIModelAdapter,
+)
+from agent_platform.adapters.models.openrouter import (
+    OpenRouterModelAdapter,
+)
+from agent_platform.adapters.observability.default import (
+    default_observer,
+)
 from agent_platform.adapters.runtimes.dsh import DSHRuntime
 from agent_platform.adapters.runtimes.fake import FakeRuntime
 from agent_platform.application.context_assembler import (
@@ -23,14 +32,95 @@ from agent_platform.application.context_renderer import (
     MarkdownContextRenderer,
 )
 from agent_platform.application.context_trace import ContextTraceBuilder
+from agent_platform.application.model_gateway import ModelGateway
 from agent_platform.application.recall_planner import (
     DeterministicRecallPlanner,
 )
 from agent_platform.application.retrieval_acceptance import (
     LexicalRetrievalAcceptanceGate,
 )
+from agent_platform.contracts.observability import ObservationContract
 from agent_platform.contracts.runtime import RuntimeContract
 from agent_platform.domain.context_budget import ContextBudget
+
+
+def build_model_gateway(
+    env: Mapping[str, str] | None = None,
+    *,
+    observer: ObservationContract = default_observer,
+) -> ModelGateway:
+    values = os.environ if env is None else env
+
+    provider = (
+        values.get(
+            "MODEL_PROVIDER",
+            "openrouter",
+        )
+        .strip()
+        .lower()
+    )
+
+    if provider == "openrouter":
+        api_key = values.get(
+            "OPENROUTER_API_KEY",
+            "",
+        ).strip()
+
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY is not configured.")
+
+        model = values.get(
+            "OPENROUTER_MODEL",
+            "openrouter/free",
+        ).strip()
+
+        if not model:
+            raise ValueError("OPENROUTER_MODEL must not be blank.")
+
+        return ModelGateway(
+            OpenRouterModelAdapter(
+                api_key=api_key,
+                model=model,
+                timeout_seconds=90.0,
+            ),
+            observer=observer,
+        )
+
+    if provider == "local":
+        api_key = values.get(
+            "LOCAL_MODEL_API_KEY",
+            "",
+        ).strip()
+        base_url = values.get(
+            "LOCAL_MODEL_BASE_URL",
+            "",
+        ).strip()
+        model = values.get(
+            "LOCAL_MODEL_NAME",
+            "",
+        ).strip()
+
+        if not api_key:
+            raise ValueError("LOCAL_MODEL_API_KEY is not configured.")
+
+        if not base_url:
+            raise ValueError("LOCAL_MODEL_BASE_URL is not configured.")
+
+        if not model:
+            raise ValueError("LOCAL_MODEL_NAME is not configured.")
+
+        return ModelGateway(
+            LocalOpenAIModelAdapter(
+                api_key=api_key,
+                model=model,
+                base_url=base_url,
+                timeout_seconds=90.0,
+                enable_thinking=False,
+            ),
+            observer=observer,
+        )
+
+    raise ValueError(f"Unsupported MODEL_PROVIDER: {provider}")
 
 
 def build_runtime(
