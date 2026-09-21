@@ -8,6 +8,7 @@ from agent_platform.domain.repository import (
     RepositoryEvidence,
     RepositoryInspectionRequest,
     RepositoryInspectionResult,
+    RepositorySymbol,
 )
 
 
@@ -32,6 +33,15 @@ class RepoWiseRepositoryBackend(RepositoryInspectionBackendContract):
             RepositoryEvidence(
                 target=item.target,
                 summary=item.summary,
+                symbols=tuple(
+                    RepositorySymbol(
+                        name=symbol.name,
+                        kind=symbol.kind,
+                        signature=symbol.signature,
+                        line=symbol.line,
+                    )
+                    for symbol in item.symbols
+                ),
                 source_reference=(f"repowise:get_context:{item.target}"),
             )
             for item in snapshot.items

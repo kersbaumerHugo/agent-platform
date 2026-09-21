@@ -8,6 +8,7 @@ from agent_platform.adapters.repository.repowise import (
 from agent_platform.contracts.repowise import (
     RepoWiseContextItem,
     RepoWiseContextSnapshot,
+    RepoWiseSymbol,
 )
 from agent_platform.domain.repository import (
     RepositoryInspectionRequest,
@@ -33,8 +34,16 @@ async def test_repowise_backend_maps_context_to_repository_evidence() -> None:
         snapshot=RepoWiseContextSnapshot(
             items=(
                 RepoWiseContextItem(
-                    target="src/agent_platform/domain/tool.py",
-                    summary="Defines tool boundary contracts.",
+                    target=("src/agent_platform/domain/tool.py"),
+                    summary=("Defines tool boundary contracts."),
+                    symbols=(
+                        RepoWiseSymbol(
+                            name="ToolDefinition",
+                            kind="class",
+                            signature="class ToolDefinition",
+                            line=7,
+                        ),
+                    ),
                 ),
             ),
             indexed_commit="abcdef123456",
@@ -52,10 +61,20 @@ async def test_repowise_backend_maps_context_to_repository_evidence() -> None:
     assert client.requests == [request.targets]
 
     assert len(result.evidence) == 1
-    assert result.evidence[0].target == request.targets[0]
-    assert result.evidence[0].source_reference == (
-        "repowise:get_context:src/agent_platform/domain/tool.py"
-    )
+
+    evidence = result.evidence[0]
+
+    assert evidence.target == request.targets[0]
+    assert evidence.source_reference == ("repowise:get_context:src/agent_platform/domain/tool.py")
+
+    assert len(evidence.symbols) == 1
+
+    symbol = evidence.symbols[0]
+
+    assert symbol.name == "ToolDefinition"
+    assert symbol.kind == "class"
+    assert symbol.signature == "class ToolDefinition"
+    assert symbol.line == 7
 
     assert result.indexed_revision == "abcdef123456"
     assert result.stale is False
