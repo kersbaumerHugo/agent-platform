@@ -21,7 +21,7 @@ class RepoWiseContextSnapshot(BaseModel):
 
     items: tuple[RepoWiseContextItem, ...]
     indexed_commit: str | None = None
-    stale_warning: str | None = None
+    stale: bool = False
 
 
 class RepoWiseClientContract(Protocol):

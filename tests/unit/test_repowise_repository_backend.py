@@ -72,7 +72,7 @@ async def test_repowise_backend_preserves_stale_signal() -> None:
                 ),
             ),
             indexed_commit="abcdef123456",
-            stale_warning="Indexed HEAD differs from live HEAD.",
+            stale=True,
         )
     )
 

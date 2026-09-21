@@ -40,5 +40,5 @@ class RepoWiseRepositoryBackend(RepositoryInspectionBackendContract):
         return RepositoryInspectionResult(
             evidence=evidence,
             indexed_revision=snapshot.indexed_commit,
-            stale=snapshot.stale_warning is not None,
+            stale=snapshot.stale,
         )
