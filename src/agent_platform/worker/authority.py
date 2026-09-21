@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 
-class CodingCapability(StrEnum):
+class CodingAuthority(StrEnum):
     """Authorities intentionally granted to model-controlled coding execution."""
 
     WORKSPACE_READ = "workspace.read"
@@ -28,16 +28,16 @@ class ForbiddenCodingAuthority(StrEnum):
 
 
 @dataclass(frozen=True, init=False)
-class CodingCapabilityPolicy:
-    """Fixed M12 V0 capability envelope owned by the trusted controller."""
+class CodingAuthorityPolicy:
+    """Fixed M12 V0 authority envelope owned by the trusted controller."""
 
     version: str = "m12-v0"
 
-    allowed: tuple[CodingCapability, ...] = (
-        CodingCapability.WORKSPACE_READ,
-        CodingCapability.WORKSPACE_WRITE,
-        CodingCapability.PROCESS_EXECUTION,
-        CodingCapability.MODEL_GATEWAY_REQUEST,
+    allowed: tuple[CodingAuthority, ...] = (
+        CodingAuthority.WORKSPACE_READ,
+        CodingAuthority.WORKSPACE_WRITE,
+        CodingAuthority.PROCESS_EXECUTION,
+        CodingAuthority.MODEL_GATEWAY_REQUEST,
     )
 
     denied: tuple[ForbiddenCodingAuthority, ...] = (
@@ -54,7 +54,7 @@ class CodingCapabilityPolicy:
 
     def allows(
         self,
-        capability: CodingCapability,
+        capability: CodingAuthority,
     ) -> bool:
         return capability in self.allowed
 
