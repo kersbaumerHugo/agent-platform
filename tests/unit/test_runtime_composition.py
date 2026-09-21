@@ -4,11 +4,10 @@ import pytest
 
 from agent_platform.adapters.runtimes.dsh import DSHRuntime
 from agent_platform.adapters.runtimes.fake import FakeRuntime
-from agent_platform.api.composition import build_runtime
-
 from agent_platform.adapters.runtimes.tool_calling import (
     ToolCallingRuntime,
 )
+from agent_platform.api.composition import build_runtime
 
 
 def test_runtime_defaults_to_fake() -> None:
@@ -117,14 +116,19 @@ def test_unknown_runtime_fails_closed() -> None:
                 "AGENT_PLATFORM_RUNTIME": "mystery",
             }
         )
-def test_runtime_builds_tool_calling_runtime() -> None:
+
+
+def test_runtime_builds_tool_calling_runtime(
+    tmp_path,
+) -> None:
     runtime = build_runtime(
         {
             "AGENT_PLATFORM_RUNTIME": "tool-calling",
             "MODEL_PROVIDER": "openrouter",
             "OPENROUTER_API_KEY": "test-key",
             "OPENROUTER_MODEL": "test/model",
-            "AGENT_PLATFORM_REPOSITORY_PATH": "/tmp/repository",
+            "AGENT_PLATFORM_REPOSITORY_PATH": str(tmp_path),
+            "AGENT_PLATFORM_REPOWISE_COMMAND": "python",
         }
     )
 
@@ -132,13 +136,14 @@ def test_runtime_builds_tool_calling_runtime() -> None:
     assert runtime.name == "tool-calling"
     assert runtime._principal_id == "system:agent-runtime"
 
-    assert [
-        definition.name
-        for definition in runtime._registry.definitions()
-    ] == ["repository_inspect"]
+    assert [definition.name for definition in runtime._registry.definitions()] == [
+        "repository_inspect"
+    ]
 
 
-def test_tool_calling_runtime_requires_model_configuration() -> None:
+def test_tool_calling_runtime_requires_model_configuration(
+    tmp_path,
+) -> None:
     with pytest.raises(
         ValueError,
         match="OPENROUTER_API_KEY",
@@ -146,7 +151,8 @@ def test_tool_calling_runtime_requires_model_configuration() -> None:
         build_runtime(
             {
                 "AGENT_PLATFORM_RUNTIME": "tool-calling",
-                "AGENT_PLATFORM_REPOSITORY_PATH": "/tmp/repository",
+                "AGENT_PLATFORM_REPOSITORY_PATH": str(tmp_path),
+                "AGENT_PLATFORM_REPOWISE_COMMAND": "python",
             }
         )
 

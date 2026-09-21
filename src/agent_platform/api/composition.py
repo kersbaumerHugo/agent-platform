@@ -1,7 +1,11 @@
 import os
+import shutil
 from collections.abc import Mapping
 from pathlib import Path
 
+from agent_platform.adapters.capabilities.repository import (
+    RepositoryInspectionCapability,
+)
 from agent_platform.adapters.memory.context_provider import (
     MemoryContextProvider,
 )
@@ -15,8 +19,23 @@ from agent_platform.adapters.models.openrouter import (
 from agent_platform.adapters.observability.default import (
     default_observer,
 )
+from agent_platform.adapters.repository.repowise import (
+    RepoWiseRepositoryBackend,
+)
+from agent_platform.adapters.repository.repowise_mcp import (
+    RepoWiseMCPClient,
+)
 from agent_platform.adapters.runtimes.dsh import DSHRuntime
 from agent_platform.adapters.runtimes.fake import FakeRuntime
+from agent_platform.adapters.runtimes.tool_calling import (
+    ToolCallingRuntime,
+)
+from agent_platform.adapters.tools.repository import (
+    RepositoryInspectionTool,
+)
+from agent_platform.application.capability_authorization import (
+    StaticCapabilityAuthorizationPolicy,
+)
 from agent_platform.application.context_assembler import (
     DeterministicContextAssembler,
 )
@@ -39,32 +58,13 @@ from agent_platform.application.recall_planner import (
 from agent_platform.application.retrieval_acceptance import (
     LexicalRetrievalAcceptanceGate,
 )
+from agent_platform.application.tool_registry import ToolRegistry
 from agent_platform.contracts.observability import ObservationContract
 from agent_platform.contracts.runtime import RuntimeContract
 from agent_platform.domain.context_budget import ContextBudget
 
-from agent_platform.adapters.capabilities.repository import (
-    RepositoryInspectionCapability,
-)
-from agent_platform.adapters.repository.repowise import (
-    RepoWiseRepositoryBackend,
-)
-from agent_platform.adapters.repository.repowise_mcp import (
-    RepoWiseMCPClient,
-)
-from agent_platform.adapters.tools.repository import (
-    RepositoryInspectionTool,
-)
-from agent_platform.application.capability_authorization import (
-    StaticCapabilityAuthorizationPolicy,
-)
-from agent_platform.application.tool_registry import ToolRegistry
-
-from agent_platform.adapters.runtimes.tool_calling import (
-    ToolCallingRuntime,
-)
-
 AGENT_RUNTIME_PRINCIPAL = "system:agent-runtime"
+
 
 def build_agent_tool_registry(
     env: Mapping[str, str] | None = None,
@@ -79,8 +79,13 @@ def build_agent_tool_registry(
     ).strip()
 
     if not repository_path:
+        raise ValueError("AGENT_PLATFORM_REPOSITORY_PATH is not configured.")
+
+    repository = Path(repository_path)
+
+    if not repository.is_dir():
         raise ValueError(
-            "AGENT_PLATFORM_REPOSITORY_PATH is not configured."
+            f"AGENT_PLATFORM_REPOSITORY_PATH must reference an existing directory: {repository}"
         )
 
     repowise_command = values.get(
@@ -89,13 +94,18 @@ def build_agent_tool_registry(
     ).strip()
 
     if not repowise_command:
+        raise ValueError("AGENT_PLATFORM_REPOWISE_COMMAND must not be blank.")
+
+    resolved_repowise = shutil.which(repowise_command)
+
+    if resolved_repowise is None:
         raise ValueError(
-            "AGENT_PLATFORM_REPOWISE_COMMAND must not be blank."
+            f"AGENT_PLATFORM_REPOWISE_COMMAND could not be resolved: {repowise_command}"
         )
 
     repowise_client = RepoWiseMCPClient(
-        repository_path=Path(repository_path),
-        command=repowise_command,
+        repository_path=repository,
+        command=resolved_repowise,
     )
 
     repository_backend = RepoWiseRepositoryBackend(
@@ -223,14 +233,15 @@ def build_runtime(
 
     if runtime_name == "dsh":
         return _build_dsh_runtime(values)
-    
+
     if runtime_name == "tool-calling":
         return _build_tool_calling_runtime(values)
 
     raise ValueError(
-    f"Unsupported AGENT_PLATFORM_RUNTIME {runtime_name!r}; "
-    "expected 'fake', 'dsh', or 'tool-calling'."
-)
+        f"Unsupported AGENT_PLATFORM_RUNTIME {runtime_name!r}; "
+        "expected 'fake', 'dsh', or 'tool-calling'."
+    )
+
 
 def _build_tool_calling_runtime(
     env: Mapping[str, str],
@@ -243,6 +254,7 @@ def _build_tool_calling_runtime(
         registry=registry,
         principal_id=AGENT_RUNTIME_PRINCIPAL,
     )
+
 
 def build_context_preparation(
     env: Mapping[str, str] | None = None,
