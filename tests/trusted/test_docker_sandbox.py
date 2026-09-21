@@ -139,6 +139,23 @@ async def test_backend_builds_fixed_hardened_command(
     )
     assert "trusted-gateway-secret" not in command
 
+    assert contains_all(
+        command,
+        ("--env", "HOME=/tmp"),
+    )
+    assert contains_all(
+        command,
+        ("--env", "TMPDIR=/tmp"),
+    )
+    assert contains_all(
+        command,
+        ("--env", "PYTHONUTF8=1"),
+    )
+    assert contains_all(
+        command,
+        ("--env", "PYTHONDONTWRITEBYTECODE=1"),
+    )
+
     serialized = " ".join(command)
 
     assert "/var/run/docker.sock" not in serialized
