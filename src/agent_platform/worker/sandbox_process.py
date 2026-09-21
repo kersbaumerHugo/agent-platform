@@ -122,6 +122,9 @@ async def _run(args: argparse.Namespace) -> int:
     runtime_env = {
         "DEEPSEEK_BASE_URL": _required_env("DEEPSEEK_BASE_URL"),
         "DEEPSEEK_API_KEY": _required_env("DEEPSEEK_API_KEY"),
+        "HOME": _required_env("HOME"),
+        "TMPDIR": _required_env("TMPDIR"),
+        "XDG_CACHE_HOME": _required_env("XDG_CACHE_HOME"),
     }
 
     executor = DshWorkerExecutor(
@@ -167,7 +170,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--profile",
-        default="sdk",
+        default="sdk-minimal",
     )
     parser.add_argument(
         "--request-timeout-seconds",

@@ -49,4 +49,7 @@ def test_builds_trusted_dsh_sandbox_without_secret_in_command(
     assert "--model" in command
     assert "test-model" in command
 
+    profile_index = command.index("--profile")
+    assert command[profile_index + 1] == "sdk-minimal"
+
     assert "trusted-secret" not in command

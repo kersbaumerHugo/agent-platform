@@ -30,7 +30,7 @@ def build_server(
     gateway_api_key: str,
     provider: str,
     model: str,
-    profile: str = "sdk",
+    profile: str = "sdk-minimal",
     request_timeout_seconds: float = 180.0,
 ) -> UnixSocketSandboxServer:
     if not provider.strip():
@@ -170,7 +170,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--profile",
-        default="sdk",
+        default="sdk-minimal",
     )
     parser.add_argument(
         "--request-timeout-seconds",
