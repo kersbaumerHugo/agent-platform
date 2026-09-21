@@ -14,6 +14,9 @@ from agent_platform.adapters.capabilities.coding import (
     SupervisedCodingCapability,
 )
 from agent_platform.adapters.tools.coding import CodingTool
+from agent_platform.application.capability_authorization import (
+    StaticCapabilityAuthorizationPolicy,
+)
 from agent_platform.application.supervised_coding import PreparedCodingTask
 from agent_platform.application.supervised_coding_publication import (
     SupervisedCodingPublicationService,
@@ -149,7 +152,17 @@ async def test_tool_to_capability_preserves_coding_trace_context() -> None:
 
     capability = SupervisedCodingCapability(coding_service)
 
-    tool = CodingTool(capability)
+    tool = CodingTool(
+        capability,
+        StaticCapabilityAuthorizationPolicy(
+            grants=[
+                (
+                    "agent:trace-test",
+                    "coding.execute",
+                )
+            ]
+        ),
+    )
 
     registry = ToolRegistry(
         [tool],
@@ -161,6 +174,7 @@ async def test_tool_to_capability_preserves_coding_trace_context() -> None:
         "coding_execute",
         ToolRequest(
             run_id=RUN_ID,
+            principal_id="agent:trace-test",
             arguments={
                 "goal": "Change one controlled file.",
                 "expected_base_revision": BASE_REVISION,

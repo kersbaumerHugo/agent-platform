@@ -7,6 +7,10 @@ import pytest
 from pydantic import ValidationError
 
 from agent_platform.adapters.tools.coding import CodingTool
+from agent_platform.application.capability_authorization import (
+    StaticCapabilityAuthorizationPolicy,
+)
+from agent_platform.domain.capability import CapabilityDefinition
 from agent_platform.domain.coding import (
     CodingPublicationOutcome,
     CodingResult,
@@ -18,8 +22,10 @@ from agent_platform.domain.tool import ToolRequest
 RUN_ID = UUID("13000000-0000-4000-8000-000000000010")
 TASK_ID = UUID("13000000-0000-4000-8000-000000000011")
 EXECUTION_ID = UUID("13000000-0000-4000-8000-000000000012")
+
 BASE_REVISION = "a" * 40
 CHANGE_SET_IDENTITY = f"v1:sha256:{'b' * 64}"
+AUTHORIZED_PRINCIPAL = "agent:developer"
 
 
 def _result() -> CodingResult:
@@ -37,10 +43,28 @@ def _result() -> CodingResult:
     )
 
 
+def _authorization() -> StaticCapabilityAuthorizationPolicy:
+    return StaticCapabilityAuthorizationPolicy(
+        grants=[
+            (
+                AUTHORIZED_PRINCIPAL,
+                "coding.execute",
+            )
+        ]
+    )
+
+
 @dataclass
 class RecordingCodingCapability:
     result: CodingResult
     requests: list[CodingTask] = field(default_factory=list)
+
+    @property
+    def definition(self) -> CapabilityDefinition:
+        return CapabilityDefinition(
+            name="coding.execute",
+            description="Execute supervised coding.",
+        )
 
     async def invoke(
         self,
@@ -51,15 +75,20 @@ class RecordingCodingCapability:
 
 
 def test_coding_tool_exposes_model_facing_contract() -> None:
-    tool = CodingTool(RecordingCodingCapability(result=_result()))
+    tool = CodingTool(
+        RecordingCodingCapability(result=_result()),
+        _authorization(),
+    )
 
     definition = tool.definition
 
     assert definition.name == "coding_execute"
+
     assert set(definition.input_schema["properties"]) == {
         "goal",
         "expected_base_revision",
     }
+
     assert "task_id" not in definition.input_schema["properties"]
 
     assert "task_id" in definition.output_schema["properties"]
@@ -70,11 +99,16 @@ def test_coding_tool_exposes_model_facing_contract() -> None:
 async def test_coding_tool_translates_json_to_typed_capability() -> None:
     expected = _result()
     capability = RecordingCodingCapability(result=expected)
-    tool = CodingTool(capability)
+
+    tool = CodingTool(
+        capability,
+        _authorization(),
+    )
 
     result = await tool.invoke(
         ToolRequest(
             run_id=RUN_ID,
+            principal_id=AUTHORIZED_PRINCIPAL,
             arguments={
                 "goal": "Change one controlled file.",
                 "expected_base_revision": BASE_REVISION,
@@ -97,12 +131,16 @@ async def test_coding_tool_translates_json_to_typed_capability() -> None:
 
 @pytest.mark.asyncio
 async def test_coding_tool_rejects_extra_model_arguments() -> None:
-    tool = CodingTool(RecordingCodingCapability(result=_result()))
+    tool = CodingTool(
+        RecordingCodingCapability(result=_result()),
+        _authorization(),
+    )
 
     with pytest.raises(ValidationError):
         await tool.invoke(
             ToolRequest(
                 run_id=RUN_ID,
+                principal_id=AUTHORIZED_PRINCIPAL,
                 arguments={
                     "goal": "Change one controlled file.",
                     "expected_base_revision": BASE_REVISION,
@@ -110,3 +148,53 @@ async def test_coding_tool_rejects_extra_model_arguments() -> None:
                 },
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_coding_tool_denies_missing_principal_before_validation() -> None:
+    capability = RecordingCodingCapability(result=_result())
+
+    tool = CodingTool(
+        capability,
+        _authorization(),
+    )
+
+    with pytest.raises(
+        PermissionError,
+        match="missing_principal",
+    ):
+        await tool.invoke(
+            ToolRequest(
+                run_id=RUN_ID,
+                arguments={},
+            )
+        )
+
+    assert capability.requests == []
+
+
+@pytest.mark.asyncio
+async def test_coding_tool_denies_anonymous_mcp_principal() -> None:
+    capability = RecordingCodingCapability(result=_result())
+
+    tool = CodingTool(
+        capability,
+        _authorization(),
+    )
+
+    with pytest.raises(
+        PermissionError,
+        match="capability_not_granted",
+    ):
+        await tool.invoke(
+            ToolRequest(
+                run_id=RUN_ID,
+                principal_id="mcp:anonymous",
+                arguments={
+                    "goal": "Change one controlled file.",
+                    "expected_base_revision": BASE_REVISION,
+                },
+            )
+        )
+
+    assert capability.requests == []

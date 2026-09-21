@@ -1,5 +1,8 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+from agent_platform.contracts.authorization import (
+    CapabilityAuthorizationContract,
+)
 from agent_platform.contracts.capability import CapabilityContract
 from agent_platform.contracts.tool import ToolContract
 from agent_platform.domain.coding import CodingResult, CodingTask
@@ -26,8 +29,10 @@ class CodingTool(ToolContract):
     def __init__(
         self,
         capability: CapabilityContract[CodingTask, CodingResult],
+        authorization: CapabilityAuthorizationContract,
     ) -> None:
         self._capability = capability
+        self._authorization = authorization
 
     @property
     def definition(self) -> ToolDefinition:
@@ -45,6 +50,14 @@ class CodingTool(ToolContract):
         self,
         request: ToolRequest,
     ) -> ToolResult:
+        decision = self._authorization.authorize(
+            principal_id=request.principal_id,
+            capability=self._capability.definition,
+        )
+
+        if not decision.allowed:
+            raise PermissionError(f"Capability invocation denied: {decision.reason_code}")
+
         arguments = _CodingArguments.model_validate(request.arguments)
 
         task = CodingTask(
