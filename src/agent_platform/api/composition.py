@@ -2,6 +2,9 @@ import os
 from collections.abc import Mapping
 from pathlib import Path
 
+from agent_platform.adapters.capabilities.repository import (
+    RepositoryInspectionCapability,
+)
 from agent_platform.adapters.memory.context_provider import (
     MemoryContextProvider,
 )
@@ -15,8 +18,20 @@ from agent_platform.adapters.models.openrouter import (
 from agent_platform.adapters.observability.default import (
     default_observer,
 )
+from agent_platform.adapters.repository.repowise import (
+    RepoWiseRepositoryBackend,
+)
+from agent_platform.adapters.repository.repowise_mcp import (
+    RepoWiseMCPClient,
+)
 from agent_platform.adapters.runtimes.dsh import DSHRuntime
 from agent_platform.adapters.runtimes.fake import FakeRuntime
+from agent_platform.adapters.tools.repository import (
+    RepositoryInspectionTool,
+)
+from agent_platform.application.capability_authorization import (
+    StaticCapabilityAuthorizationPolicy,
+)
 from agent_platform.application.context_assembler import (
     DeterministicContextAssembler,
 )
@@ -39,9 +54,68 @@ from agent_platform.application.recall_planner import (
 from agent_platform.application.retrieval_acceptance import (
     LexicalRetrievalAcceptanceGate,
 )
+from agent_platform.application.tool_registry import ToolRegistry
 from agent_platform.contracts.observability import ObservationContract
 from agent_platform.contracts.runtime import RuntimeContract
 from agent_platform.domain.context_budget import ContextBudget
+
+AGENT_RUNTIME_PRINCIPAL = "system:agent-runtime"
+
+
+def build_agent_tool_registry(
+    env: Mapping[str, str] | None = None,
+    *,
+    observer: ObservationContract = default_observer,
+) -> ToolRegistry:
+    values = os.environ if env is None else env
+
+    repository_path = values.get(
+        "AGENT_PLATFORM_REPOSITORY_PATH",
+        "",
+    ).strip()
+
+    if not repository_path:
+        raise ValueError("AGENT_PLATFORM_REPOSITORY_PATH is not configured.")
+
+    repowise_command = values.get(
+        "AGENT_PLATFORM_REPOWISE_COMMAND",
+        "repowise",
+    ).strip()
+
+    if not repowise_command:
+        raise ValueError("AGENT_PLATFORM_REPOWISE_COMMAND must not be blank.")
+
+    repowise_client = RepoWiseMCPClient(
+        repository_path=Path(repository_path),
+        command=repowise_command,
+    )
+
+    repository_backend = RepoWiseRepositoryBackend(
+        repowise_client,
+    )
+
+    repository_capability = RepositoryInspectionCapability(
+        repository_backend,
+    )
+
+    authorization = StaticCapabilityAuthorizationPolicy(
+        grants=[
+            (
+                AGENT_RUNTIME_PRINCIPAL,
+                "repository.inspect",
+            )
+        ]
+    )
+
+    repository_tool = RepositoryInspectionTool(
+        repository_capability,
+        authorization,
+    )
+
+    return ToolRegistry(
+        [repository_tool],
+        observer,
+    )
 
 
 def build_model_gateway(
