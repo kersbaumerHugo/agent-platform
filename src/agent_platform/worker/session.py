@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
+from uuid import UUID, uuid4
 
 from agent_platform.trust.publisher import ChangeSet
 from agent_platform.worker.change_set import ChangeSetBuilder
@@ -14,6 +15,7 @@ class WorkerDevelopmentTask:
     goal: str
     branch_name: str
     commit_message: str
+    execution_id: UUID = field(default_factory=uuid4)
 
     def __post_init__(self) -> None:
         if not self.goal.strip():
@@ -30,6 +32,7 @@ class WorkerDevelopmentTask:
 class WorkerExecutionRequest:
     goal: str
     workspace: Path
+    execution_id: UUID = field(default_factory=uuid4)
 
 
 @dataclass(frozen=True)
@@ -63,6 +66,7 @@ class WorkerDevelopmentSession:
                 WorkerExecutionRequest(
                     goal=task.goal,
                     workspace=workspace.path,
+                    execution_id=task.execution_id,
                 )
             )
 

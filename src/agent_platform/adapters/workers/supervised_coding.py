@@ -28,9 +28,12 @@ class WorkerCodingChangeProducer:
     async def produce(
         self,
         task: CodingTask,
+        *,
+        execution_id: UUID,
     ) -> ChangeSet:
         return await self._session.run(
             WorkerDevelopmentTask(
+                execution_id=execution_id,
                 goal=task.goal,
                 branch_name=self.branch_name(task.task_id),
                 commit_message=self.commit_message(task.task_id),
