@@ -18,21 +18,14 @@ from agent_platform.application.supervised_coding import (
 from agent_platform.application.supervised_coding_publication import (
     SupervisedCodingPublicationService,
 )
-from agent_platform.trust.authoritative_verifier import (
-    AuthoritativeVerifier,
-)
 from agent_platform.trust.change_set_materializer import (
     DisposableChangeSetMaterializer,
 )
 from agent_platform.trust.verification_binding import (
     ChangeSetVerificationService,
 )
-from agent_platform.trust.verification_docker import (
-    DockerVerificationConfig,
-    DockerVerificationProcessRunner,
-)
-from agent_platform.trust.verification_executor import (
-    ProfileVerificationExecutor,
+from agent_platform.trust.verification_service import (
+    TrustedVerificationClient,
 )
 from agent_platform.trust.verified_publication import (
     VerifiedChangePublisher,
@@ -78,13 +71,11 @@ def build_supervised_coding_capability(
             "AGENT_PLATFORM_CODING_VERIFICATION_WORKSPACE_PARENT",
         )
     )
-    verifier_runtime_root = _existing_directory(
-        env,
-        "AGENT_PLATFORM_CODING_VERIFIER_RUNTIME_ROOT",
-    )
-    verifier_image = _required(
-        env,
-        "AGENT_PLATFORM_CODING_VERIFIER_IMAGE",
+    verifier_socket = Path(
+        _required(
+            env,
+            "AGENT_PLATFORM_CODING_VERIFIER_SOCKET",
+        )
     )
     publisher_socket = Path(
         _required(
@@ -119,20 +110,16 @@ def build_supervised_coding_capability(
         ),
     )
 
+    materializer = DisposableChangeSetMaterializer(
+        trusted_repo_root=trusted_repository,
+        workspace_parent=verification_workspace_parent,
+    )
+
     verification = ChangeSetVerificationService(
-        materializer=DisposableChangeSetMaterializer(
-            trusted_repo_root=trusted_repository,
-            workspace_parent=verification_workspace_parent,
-        ),
-        verifier=AuthoritativeVerifier(
-            executor=ProfileVerificationExecutor(
-                runner=DockerVerificationProcessRunner(
-                    config=DockerVerificationConfig(
-                        image=verifier_image,
-                        runtime_root=verifier_runtime_root,
-                    )
-                )
-            )
+        materializer=materializer,
+        verifier=TrustedVerificationClient(
+            socket_path=verifier_socket,
+            workspace_root=verification_workspace_parent,
         ),
     )
 

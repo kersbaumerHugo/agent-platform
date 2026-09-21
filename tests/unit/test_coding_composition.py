@@ -64,17 +64,13 @@ def _env(
     worker_root = tmp_path / "worker"
     worker_root.mkdir()
 
-    verifier_runtime = tmp_path / "verifier-runtime"
-    verifier_runtime.mkdir()
-
     return {
         "AGENT_PLATFORM_CODING_REPOSITORY_URL": str(repo),
         "AGENT_PLATFORM_CODING_TRUSTED_REPOSITORY_PATH": (str(repo)),
         "AGENT_PLATFORM_CODING_WORKSPACE_PARENT": (str(worker_root)),
         "AGENT_PLATFORM_CODING_SANDBOX_SOCKET": str(tmp_path / "sandbox.sock"),
         "AGENT_PLATFORM_CODING_VERIFICATION_WORKSPACE_PARENT": str(tmp_path / "verification"),
-        "AGENT_PLATFORM_CODING_VERIFIER_RUNTIME_ROOT": str(verifier_runtime),
-        "AGENT_PLATFORM_CODING_VERIFIER_IMAGE": ("sha256:" + "a" * 64),
+        "AGENT_PLATFORM_CODING_VERIFIER_SOCKET": str(tmp_path / "verifier.sock"),
         "AGENT_PLATFORM_CODING_PUBLISHER_SOCKET": str(tmp_path / "publisher.sock"),
         "AGENT_PLATFORM_CODING_BASE_BRANCH": "main",
     }
