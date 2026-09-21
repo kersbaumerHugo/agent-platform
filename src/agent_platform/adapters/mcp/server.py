@@ -11,9 +11,7 @@ from mcp.types import (
     PaginatedRequestParams,
     TextContent,
 )
-from mcp.types import (
-    Tool as MCPTool,
-)
+from mcp.types import Tool as MCPTool
 from starlette.requests import Request
 
 from agent_platform.application.tool_registry import ToolRegistry
@@ -30,6 +28,18 @@ RunIdResolver = Callable[
     [RequestContext],
     UUID,
 ]
+
+PrincipalIdResolver = Callable[
+    [RequestContext],
+    str,
+]
+
+
+def anonymous_principal(
+    context: RequestContext,
+) -> str:
+    del context
+    return "mcp:anonymous"
 
 
 def run_id_from_http_context(
@@ -54,7 +64,8 @@ def run_id_from_http_context(
 def build_mcp_tool_server(
     registry: ToolRegistry,
     *,
-    run_id_resolver: RunIdResolver = (run_id_from_http_context),
+    run_id_resolver: RunIdResolver = run_id_from_http_context,
+    principal_id_resolver: PrincipalIdResolver = anonymous_principal,
 ) -> Server[dict[str, Any]]:
     async def list_tools(
         context: RequestContext,
@@ -80,6 +91,7 @@ def build_mcp_tool_server(
     ) -> CallToolResult:
         try:
             run_id = run_id_resolver(context)
+            principal_id = principal_id_resolver(context)
         except ValueError:
             return CallToolResult(
                 content=[
@@ -96,6 +108,7 @@ def build_mcp_tool_server(
                 params.name,
                 ToolRequest(
                     run_id=run_id,
+                    principal_id=principal_id,
                     arguments=dict(params.arguments or {}),
                 ),
             )
