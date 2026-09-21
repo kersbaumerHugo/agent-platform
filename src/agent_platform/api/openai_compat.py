@@ -12,13 +12,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agent_platform.adapters.models.local_openai import (
     LocalOpenAIError,
-    LocalOpenAIModelAdapter,
 )
 from agent_platform.adapters.models.openrouter import (
     OpenRouterError,
-    OpenRouterModelAdapter,
 )
-from agent_platform.adapters.observability.default import default_observer
+from agent_platform.api.composition import build_model_gateway
 from agent_platform.application.context_injector import (
     ReferenceMessageInjector,
 )
@@ -101,76 +99,13 @@ def get_context_injector() -> ReferenceMessageInjector:
 
 
 def get_model_gateway() -> ModelGateway:
-    provider = (
-        os.environ.get(
-            "MODEL_PROVIDER",
-            "openrouter",
-        )
-        .strip()
-        .lower()
-    )
-
-    if provider == "openrouter":
-        api_key = os.environ.get("OPENROUTER_API_KEY")
-
-        if not api_key:
-            raise HTTPException(
-                status_code=503,
-                detail="OPENROUTER_API_KEY is not configured.",
-            )
-
-        openrouter_model = os.environ.get(
-            "OPENROUTER_MODEL",
-            "openrouter/free",
-        )
-
-        return ModelGateway(
-            OpenRouterModelAdapter(
-                api_key=api_key,
-                model=openrouter_model,
-                timeout_seconds=90.0,
-            ),
-            observer=default_observer,
-        )
-
-    if provider == "local":
-        api_key = os.environ.get("LOCAL_MODEL_API_KEY")
-        base_url = os.environ.get("LOCAL_MODEL_BASE_URL")
-        local_model = os.environ.get("LOCAL_MODEL_NAME")
-
-        if not api_key:
-            raise HTTPException(
-                status_code=503,
-                detail="LOCAL_MODEL_API_KEY is not configured.",
-            )
-
-        if not base_url:
-            raise HTTPException(
-                status_code=503,
-                detail="LOCAL_MODEL_BASE_URL is not configured.",
-            )
-
-        if not local_model:
-            raise HTTPException(
-                status_code=503,
-                detail="LOCAL_MODEL_NAME is not configured.",
-            )
-
-        return ModelGateway(
-            LocalOpenAIModelAdapter(
-                api_key=api_key,
-                model=local_model,
-                base_url=base_url,
-                timeout_seconds=90.0,
-                enable_thinking=False,
-            ),
-            observer=default_observer,
-        )
-
-    raise HTTPException(
-        status_code=503,
-        detail=f"Unsupported MODEL_PROVIDER: {provider}",
-    )
+    try:
+        return build_model_gateway()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
 
 
 def require_gateway_auth(

@@ -20,6 +20,22 @@ def _structured_content(
                     "path": TARGET,
                     "docs": {
                         "summary": ("Defines Agent Platform tool contracts."),
+                        "symbols": [
+                            {
+                                "name": "ToolDefinition",
+                                "kind": "class",
+                                "signature": "class ToolDefinition",
+                                "line": 7,
+                                "symbol_id": ("src/agent_platform/domain/tool.py::ToolDefinition"),
+                            },
+                            {
+                                "name": "ToolRequest",
+                                "kind": "class",
+                                "signature": "class ToolRequest",
+                                "line": 15,
+                                "symbol_id": ("src/agent_platform/domain/tool.py::ToolRequest"),
+                            },
+                        ],
                     },
                     "freshness": {
                         "is_stale": target_stale,
@@ -48,6 +64,14 @@ def test_parser_maps_real_repowise_context_contract() -> None:
 
     assert result.indexed_commit == "ee2af373e39e"
     assert result.stale is False
+    assert len(result.items[0].symbols) == 2
+
+    assert result.items[0].symbols[0].name == "ToolDefinition"
+    assert result.items[0].symbols[0].kind == "class"
+    assert result.items[0].symbols[0].signature == "class ToolDefinition"
+    assert result.items[0].symbols[0].line == 7
+
+    assert result.items[0].symbols[1].name == "ToolRequest"
 
 
 @pytest.mark.parametrize(
@@ -110,7 +134,28 @@ def test_parser_fails_closed_without_summary() -> None:
                 "result": {
                     "targets": {
                         TARGET: {
-                            "docs": {},
+                            "docs": {
+                                "symbols": [
+                                    {
+                                        "name": "ToolDefinition",
+                                        "kind": "class",
+                                        "signature": "class ToolDefinition",
+                                        "line": 7,
+                                        "symbol_id": (
+                                            "src/agent_platform/domain/tool.py::ToolDefinition"
+                                        ),
+                                    },
+                                    {
+                                        "name": "ToolRequest",
+                                        "kind": "class",
+                                        "signature": "class ToolRequest",
+                                        "line": 15,
+                                        "symbol_id": (
+                                            "src/agent_platform/domain/tool.py::ToolRequest"
+                                        ),
+                                    },
+                                ],
+                            },
                         }
                     },
                     "_meta": {},
@@ -118,3 +163,16 @@ def test_parser_fails_closed_without_summary() -> None:
             },
             (TARGET,),
         )
+
+
+def test_parser_allows_context_without_symbols() -> None:
+    content = _structured_content()
+
+    content["result"]["targets"][TARGET]["docs"]["symbols"] = []
+
+    result = RepoWiseMCPClient._parse_context(
+        content,
+        (TARGET,),
+    )
+
+    assert result.items[0].symbols == ()

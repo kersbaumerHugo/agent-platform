@@ -1,13 +1,41 @@
 import os
+import shutil
 from collections.abc import Mapping
 from pathlib import Path
 
+from agent_platform.adapters.capabilities.repository import (
+    RepositoryInspectionCapability,
+)
 from agent_platform.adapters.memory.context_provider import (
     MemoryContextProvider,
 )
 from agent_platform.adapters.memory.sqlite import SQLiteFTSRetrieval
+from agent_platform.adapters.models.local_openai import (
+    LocalOpenAIModelAdapter,
+)
+from agent_platform.adapters.models.openrouter import (
+    OpenRouterModelAdapter,
+)
+from agent_platform.adapters.observability.default import (
+    default_observer,
+)
+from agent_platform.adapters.repository.repowise import (
+    RepoWiseRepositoryBackend,
+)
+from agent_platform.adapters.repository.repowise_mcp import (
+    RepoWiseMCPClient,
+)
 from agent_platform.adapters.runtimes.dsh import DSHRuntime
 from agent_platform.adapters.runtimes.fake import FakeRuntime
+from agent_platform.adapters.runtimes.tool_calling import (
+    ToolCallingRuntime,
+)
+from agent_platform.adapters.tools.repository import (
+    RepositoryInspectionTool,
+)
+from agent_platform.application.capability_authorization import (
+    StaticCapabilityAuthorizationPolicy,
+)
 from agent_platform.application.context_assembler import (
     DeterministicContextAssembler,
 )
@@ -23,14 +51,168 @@ from agent_platform.application.context_renderer import (
     MarkdownContextRenderer,
 )
 from agent_platform.application.context_trace import ContextTraceBuilder
+from agent_platform.application.model_gateway import ModelGateway
 from agent_platform.application.recall_planner import (
     DeterministicRecallPlanner,
 )
 from agent_platform.application.retrieval_acceptance import (
     LexicalRetrievalAcceptanceGate,
 )
+from agent_platform.application.tool_registry import ToolRegistry
+from agent_platform.contracts.observability import ObservationContract
 from agent_platform.contracts.runtime import RuntimeContract
 from agent_platform.domain.context_budget import ContextBudget
+
+AGENT_RUNTIME_PRINCIPAL = "system:agent-runtime"
+
+
+def build_agent_tool_registry(
+    env: Mapping[str, str] | None = None,
+    *,
+    observer: ObservationContract = default_observer,
+) -> ToolRegistry:
+    values = os.environ if env is None else env
+
+    repository_path = values.get(
+        "AGENT_PLATFORM_REPOSITORY_PATH",
+        "",
+    ).strip()
+
+    if not repository_path:
+        raise ValueError("AGENT_PLATFORM_REPOSITORY_PATH is not configured.")
+
+    repository = Path(repository_path)
+
+    if not repository.is_dir():
+        raise ValueError(
+            f"AGENT_PLATFORM_REPOSITORY_PATH must reference an existing directory: {repository}"
+        )
+
+    repowise_command = values.get(
+        "AGENT_PLATFORM_REPOWISE_COMMAND",
+        "repowise",
+    ).strip()
+
+    if not repowise_command:
+        raise ValueError("AGENT_PLATFORM_REPOWISE_COMMAND must not be blank.")
+
+    resolved_repowise = shutil.which(repowise_command)
+
+    if resolved_repowise is None:
+        raise ValueError(
+            f"AGENT_PLATFORM_REPOWISE_COMMAND could not be resolved: {repowise_command}"
+        )
+
+    repowise_client = RepoWiseMCPClient(
+        repository_path=repository,
+        command=resolved_repowise,
+    )
+
+    repository_backend = RepoWiseRepositoryBackend(
+        repowise_client,
+    )
+
+    repository_capability = RepositoryInspectionCapability(
+        repository_backend,
+    )
+
+    authorization = StaticCapabilityAuthorizationPolicy(
+        grants=[
+            (
+                AGENT_RUNTIME_PRINCIPAL,
+                "repository.inspect",
+            )
+        ]
+    )
+
+    repository_tool = RepositoryInspectionTool(
+        repository_capability,
+        authorization,
+    )
+
+    return ToolRegistry(
+        [repository_tool],
+        observer,
+    )
+
+
+def build_model_gateway(
+    env: Mapping[str, str] | None = None,
+    *,
+    observer: ObservationContract = default_observer,
+) -> ModelGateway:
+    values = os.environ if env is None else env
+
+    provider = (
+        values.get(
+            "MODEL_PROVIDER",
+            "openrouter",
+        )
+        .strip()
+        .lower()
+    )
+
+    if provider == "openrouter":
+        api_key = values.get(
+            "OPENROUTER_API_KEY",
+            "",
+        ).strip()
+
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY is not configured.")
+
+        model = values.get(
+            "OPENROUTER_MODEL",
+            "openrouter/free",
+        ).strip()
+
+        if not model:
+            raise ValueError("OPENROUTER_MODEL must not be blank.")
+
+        return ModelGateway(
+            OpenRouterModelAdapter(
+                api_key=api_key,
+                model=model,
+                timeout_seconds=90.0,
+            ),
+            observer=observer,
+        )
+
+    if provider == "local":
+        api_key = values.get(
+            "LOCAL_MODEL_API_KEY",
+            "",
+        ).strip()
+        base_url = values.get(
+            "LOCAL_MODEL_BASE_URL",
+            "",
+        ).strip()
+        model = values.get(
+            "LOCAL_MODEL_NAME",
+            "",
+        ).strip()
+
+        if not api_key:
+            raise ValueError("LOCAL_MODEL_API_KEY is not configured.")
+
+        if not base_url:
+            raise ValueError("LOCAL_MODEL_BASE_URL is not configured.")
+
+        if not model:
+            raise ValueError("LOCAL_MODEL_NAME is not configured.")
+
+        return ModelGateway(
+            LocalOpenAIModelAdapter(
+                api_key=api_key,
+                model=model,
+                base_url=base_url,
+                timeout_seconds=90.0,
+                enable_thinking=False,
+            ),
+            observer=observer,
+        )
+
+    raise ValueError(f"Unsupported MODEL_PROVIDER: {provider}")
 
 
 def build_runtime(
@@ -52,8 +234,25 @@ def build_runtime(
     if runtime_name == "dsh":
         return _build_dsh_runtime(values)
 
+    if runtime_name == "tool-calling":
+        return _build_tool_calling_runtime(values)
+
     raise ValueError(
-        f"Unsupported AGENT_PLATFORM_RUNTIME {runtime_name!r}; expected 'fake' or 'dsh'."
+        f"Unsupported AGENT_PLATFORM_RUNTIME {runtime_name!r}; "
+        "expected 'fake', 'dsh', or 'tool-calling'."
+    )
+
+
+def _build_tool_calling_runtime(
+    env: Mapping[str, str],
+) -> ToolCallingRuntime:
+    gateway = build_model_gateway(env)
+    registry = build_agent_tool_registry(env)
+
+    return ToolCallingRuntime(
+        gateway=gateway,
+        registry=registry,
+        principal_id=AGENT_RUNTIME_PRINCIPAL,
     )
 
 

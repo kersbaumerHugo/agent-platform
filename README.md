@@ -25,7 +25,9 @@ The platform currently includes:
 - structured observability;
 - persistent systemd-based deployment;
 - a trusted self-development boundary;
-- supervised autonomous Worker execution.
+- supervised autonomous Worker execution;
+- a configuration-driven tool-calling runtime;
+- RepoWise-backed repository inspection through typed capabilities.
 
 ```text
 Agent Runtime
@@ -42,92 +44,38 @@ RuntimeContract
     |                                  v
     |                              llama-server
     |
-    +----> MCP Adapter -> ToolRegistry
-                              |
-                              +----> ToolContract -> Tool
-                              |
-                              +----> memory_remember -> MemoryStoreContract -> SQLite
-                              |
-                              +----> memory_recall -> RetrievalContract
-                                                       |
-                                                       v
-                                                FTS5 / BM25
-                                                       |
-                                                       v
-                                             Acceptance Gate
-                                              ACCEPT / ABSTAIN
+    +----> ToolRegistry
+              |
+              v
+        Authorization
+              |
+              v
+        Typed Capability
 ```
 
 ## Validated agentic loop
 
 ```text
-DSH
- -> Agent Platform Model Gateway
+RunAgent
+ -> ToolCallingRuntime
+ -> Model Gateway
  -> selected ModelContract adapter
  -> tool_call
- -> DSH
- -> MCP
- -> Agent Platform ToolRegistry
- -> Tool
- -> DSH
+ -> ToolRegistry
+ -> Authorization
+ -> Typed Capability
+ -> Provider Backend
+ -> ToolResult
  -> Model Gateway
  -> selected ModelContract adapter
  -> final response
 ```
 
-## Validated context preparation pipeline
-
-```text
-Work / WorkStep
-      |
-      v
-explicit ContextRef[]
-      |
-      v
-DeterministicRecallPlanner
-      |
-      v
-ContextProviderContract
-      |
-      v
-MemoryContextProvider
-      |
-      v
-ContextContribution[]
-      |
-      v
-DeterministicContextAssembler
-      |
-      v
-ContextBundle
-      |
-      v
-DeterministicContextBudgetPolicy
-      |
-      v
-BudgetedContextBundle
-      |
-      v
-MarkdownContextRenderer
-      |
-      v
-RenderedContext
-      |
-      v
-ReferenceMessageInjector
-      |
-      v
-ModelRequest
-```
-
-The M10 baseline keeps model-facing context separate from operational trace
-evidence and never promotes retrieved context into a new system message by
-structure.
-
 ## Implemented
 
 - RuntimeContract
 - DeepSeek Harness runtime adapter
+- ToolCallingRuntime
 - ModelContract
 - OpenRouter model adapter
 - local OpenAI-compatible model adapter
@@ -135,6 +83,11 @@ structure.
 - internal OpenAI-compatible Model Gateway
 - ToolContract
 - ToolRegistry
+- typed CapabilityContract
+- capability authorization boundary
+- `repository.inspect`
+- RepoWise MCP-backed repository inspection
+- provider-neutral repository symbol evidence
 - MCP Streamable HTTP adapter
 - diagnostic tool
 - MemoryScope / MemoryRecord domain models
@@ -152,15 +105,7 @@ structure.
 - `/work` API boundary
 - EvaluationContract / EvaluationCase / EvaluationResult
 - EvalRunner
-- RecallPlannerContract / DeterministicRecallPlanner
-- ContextProviderContract / MemoryContextProvider
-- ContextAssemblerContract / DeterministicContextAssembler
-- ContextBudgetPolicyContract / DeterministicContextBudgetPolicy
-- TokenEstimatorContract / Utf8ByteTokenEstimator
-- ContextRendererContract / MarkdownContextRenderer
-- ContextInjectorContract / ReferenceMessageInjector
-- ContextPreparationTrace / ContextTraceBuilder
-- explicit ACCEPT / ABSTAIN recall semantics
+- source-neutral context preparation pipeline
 - structured observability events
 - Prometheus metrics
 - OpenTelemetry tracing
@@ -181,6 +126,122 @@ See [docs/architecture.md](docs/architecture.md).
 Architecture decisions are recorded under [docs/adr](docs/adr).
 
 Execution and experiment evidence is documented under [docs/evidence](docs/evidence) and [docs/validation](docs/validation).
+
+## Usable Agent Runtime V1
+
+The platform can compose and execute a real tool-calling agent without manual
+test wiring.
+
+```text
+POST /runs
+    |
+    v
+RunAgent
+    |
+    v
+ToolCallingRuntime
+    |
+    +----> ModelGateway
+    |         |
+    |         +----> OpenRouter
+    |         |
+    |         +----> Local OpenAI-compatible model
+    |
+    +----> ToolRegistry
+              |
+              v
+        Authorization
+              |
+              v
+      Typed Capability
+              |
+              v
+      RepositoryInspection
+              |
+              v
+        RepoWise over MCP
+```
+
+The first production-composed capability exposed to the agent runtime is:
+
+```text
+repository_inspect
+    ->
+repository.inspect
+```
+
+The runtime uses the platform-owned trusted principal:
+
+```text
+system:agent-runtime
+```
+
+Authorization remains explicit and fail closed.
+
+RepoWise is kept outside the Agent Platform Python environment and is invoked
+through MCP stdio as an isolated provider implementation.
+
+Repository inspection preserves provider-neutral evidence including:
+
+- target;
+- summary;
+- symbol name;
+- symbol kind;
+- symbol signature;
+- source line;
+- indexed revision;
+- stale state.
+
+The live local smoke was validated against the homelab OpenAI-compatible
+inference endpoint backed by `llama-server` and the local NVIDIA GPU.
+
+Example runtime configuration:
+
+```bash
+export AGENT_PLATFORM_RUNTIME=tool-calling
+
+export MODEL_PROVIDER=local
+export LOCAL_MODEL_BASE_URL=http://192.168.10.40:8080/v1
+export LOCAL_MODEL_NAME=qwen3.5-9b-local
+export LOCAL_MODEL_API_KEY=<secret>
+
+export AGENT_PLATFORM_REPOSITORY_PATH="$PWD"
+export AGENT_PLATFORM_REPOWISE_COMMAND="$HOME/.local/bin/repowise"
+```
+
+Start the API:
+
+```bash
+python -m uvicorn agent_platform.api.main:app \
+  --host 127.0.0.1 \
+  --port 8000
+```
+
+Example repository-aware run:
+
+```bash
+curl -sS \
+  -X POST \
+  http://127.0.0.1:8000/runs \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "agent_id": "developer-agent",
+    "input": "You must use repository_inspect before answering. Inspect src/agent_platform/domain/tool.py and explain what the file defines using only the repository evidence."
+  }'
+```
+
+The accepted V1 composition remains intentionally bounded:
+
+```text
+one model tool-call round
+explicit capability grants
+no dynamic RBAC
+no autonomous tool loop
+no distributed runtime state
+no source-code dump required for repository structure inspection
+```
+
+Complexity remains evidence gated.
 
 ## Development
 
@@ -240,146 +301,20 @@ git diff --check
 
 ## Completed milestones
 
-### V0 — Functional vertical slice
+### M14 — Usable Agent Runtime V1
 
-- [x] Platform-owned RuntimeContract.
-- [x] Runtime implementation is replaceable.
-- [x] DSH integrated as the first Runtime Adapter.
-- [x] Platform-owned ModelContract.
-- [x] OpenRouter integrated as a Model Adapter.
-- [x] Provider credentials remain inside the platform boundary.
-- [x] Internal OpenAI-compatible Model Gateway.
-- [x] Platform-owned ToolContract and ToolRegistry.
-- [x] MCP exposed as a capability adapter, not platform core.
-- [x] Complete model -> tool -> model loop proven.
-- [x] Structured logs, metrics and tracing.
-- [x] Automated test suite and reproducible smoke validation.
+- [x] shared Model Gateway composition;
+- [x] production Agent Tool Registry composition;
+- [x] configuration-driven ToolCallingRuntime;
+- [x] real local model tool calling;
+- [x] RepoWise-backed repository inspection;
+- [x] provider-neutral repository symbol evidence;
+- [x] fail-closed validation of static runtime dependencies;
+- [x] real `/runs` repository-aware smoke.
 
-### M5 — Persistent deployment
-
-- [x] systemd lifecycle management.
-- [x] automatic recovery and boot recovery.
-- [x] immutable versioned releases.
-- [x] health verification.
-- [x] secret isolation.
-- [x] roll-forward and rollback.
-- [x] deployment observability.
-
-See ADR-0003.
-
-### M6 — Trusted self-development boundary
-
-- [x] fail-closed ChangePolicy.
-- [x] trusted publisher boundary.
-- [x] disposable publication workspaces.
-- [x] disposable Worker development workspaces.
-- [x] Worker without GitHub publication credentials.
-- [x] supervised subprocess execution and hard timeouts.
-- [x] provider readiness checks and typed upstream failures.
-- [x] safe Worker lifecycle diagnostics.
-- [x] human-controlled promotion through pull requests and CI.
-
-### M7 — Memory & Recall V0
-
-- [x] platform-owned memory and retrieval contracts.
-- [x] explicit durable memory writes.
-- [x] SQLite persistence.
-- [x] lexical-first retrieval with FTS5/BM25.
-- [x] deterministic Retrieval Acceptance Gate.
-- [x] explicit ACCEPT / ABSTAIN semantics.
-- [x] scope isolation.
-- [x] MCP capabilities through `memory_remember` and `memory_recall`.
-- [x] cross-run persistence.
-- [x] process recovery persistence.
-- [x] guest reboot persistence.
-- [x] application release persistence.
-
-The guiding separation is:
-
-```text
-Memory != Retrieval != Context Injection
-```
-
-Embeddings, vector databases, hybrid retrieval, reranking and automatic memory extraction remain deferred until evidence demonstrates that the lexical baseline is insufficient.
-
-See ADR-0005 and `docs/evidence/m7-memory-recall-results.md`.
-
-### M8 — Evaluation Plane / Eval-as-Code
-
-- [x] platform-owned EvaluationContract.
-- [x] EvaluationCase / EvaluationResult canonical models.
-- [x] deterministic EvalRunner.
-- [x] PASS / FAIL / ERROR semantics.
-- [x] machine-readable evidence artifacts.
-- [x] evaluation kept distinct from observability, benchmark, tests and guardrails.
-
-The guiding separation is:
-
-```text
-Eval != Observability != Benchmark != Test != Guardrail
-```
-
-See ADR-0006.
-
-### M9 — Work API and deterministic orchestration
-
-- [x] WorkRequest / WorkResult boundary.
-- [x] explicit ContextRef allow-list attached to Work.
-- [x] deterministic sequential WorkOrchestrator.
-- [x] fail-fast behavior on the first failed step.
-- [x] additive `/work` API.
-- [x] contextual recall experiment with explicit namespace isolation.
-
-The guiding separation is:
-
-```text
-Work != Plan != Run != Orchestrator != Runtime != Agent
-```
-
-See ADR-0007.
-
-### M10 — Context Preparation + Injection V0
-
-- [x] source-neutral canonical Context IR.
-- [x] deterministic RecallPlannerContract.
-- [x] Memory as the first ContextProvider implementation.
-- [x] deterministic context assembly.
-- [x] bounded deterministic context budgeting.
-- [x] provider-neutral deterministic Markdown rendering.
-- [x] privilege-safe injection at the canonical ModelRequest boundary.
-- [x] structured ContextPreparationTrace evidence.
-- [x] 8/8 Eval-as-Code acceptance cases passing.
-- [x] deterministic end-to-end LinkedIn + Homelab smoke.
-- [x] ADR-0008 accepted.
-
-The guiding separation is:
-
-```text
-Context Source
-!= Memory
-!= Retrieval
-!= Assembly
-!= Budgeting
-!= Rendering
-!= Injection
-```
-
-Model-facing context and operational trace evidence remain separate.
-
-See ADR-0008 and
-`docs/evidence/m10-context-preparation-experiment-results.md`.
+See `docs/evidence/m14-usable-agent-runtime-results.md`.
 
 ## Next steps
 
-The next candidate milestone is **M11 — Context-Aware Work Execution V0**.
-
-M11 should wire the accepted M10 context-preparation pipeline into actual
-WorkStep execution so explicit Work contexts participate in the real Run /
-Runtime path. It should also evaluate whether a first-class `ExecutionContext`
-earns its place or whether a simpler boundary is sufficient.
-
-The default `/work` execution path is therefore not yet context-aware end to end.
-
-Dense retrieval, hybrid retrieval, reranking, automatic context selection,
-LLM-based planning/compression and other retrieval complexity remain deferred
-until evidence demonstrates a requirement gap or measurable improvement.
+Build on the usable V1 runtime without widening platform abstractions unless new
+evidence justifies it.

@@ -7,6 +7,7 @@ from mcp.client.stdio import stdio_client
 from agent_platform.contracts.repowise import (
     RepoWiseContextItem,
     RepoWiseContextSnapshot,
+    RepoWiseSymbol,
 )
 
 
@@ -88,6 +89,45 @@ class RepoWiseMCPClient:
             if not isinstance(summary, str) or not summary.strip():
                 raise ValueError(f"RepoWise target has no summary: {target}")
 
+            raw_symbols = docs.get("symbols", [])
+
+            if not isinstance(raw_symbols, list):
+                raise ValueError(f"RepoWise target has invalid symbols: {target}")
+
+            symbols: list[RepoWiseSymbol] = []
+
+            for raw_symbol in raw_symbols:
+                if not isinstance(raw_symbol, dict):
+                    raise ValueError(f"RepoWise target has invalid symbol: {target}")
+
+                name = raw_symbol.get("name")
+                kind = raw_symbol.get("kind")
+                signature = raw_symbol.get("signature")
+                line = raw_symbol.get("line")
+
+                if not isinstance(name, str) or not name.strip():
+                    raise ValueError(f"RepoWise symbol has no name: {target}")
+
+                if not isinstance(kind, str) or not kind.strip():
+                    raise ValueError(f"RepoWise symbol has no kind: {target}")
+
+                if not isinstance(signature, str) or not signature.strip():
+                    raise ValueError(f"RepoWise symbol has no signature: {target}")
+
+                if line is not None and (
+                    not isinstance(line, int) or isinstance(line, bool) or line < 1
+                ):
+                    raise ValueError(f"RepoWise symbol has invalid line: {target}")
+
+                symbols.append(
+                    RepoWiseSymbol(
+                        name=name.strip(),
+                        kind=kind.strip(),
+                        signature=signature.strip(),
+                        line=line,
+                    )
+                )
+
             freshness = raw_target.get("freshness")
 
             if isinstance(freshness, dict) and freshness.get("is_stale") is True:
@@ -97,6 +137,7 @@ class RepoWiseMCPClient:
                 RepoWiseContextItem(
                     target=target,
                     summary=summary.strip(),
+                    symbols=tuple(symbols),
                 )
             )
 

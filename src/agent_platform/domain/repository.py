@@ -14,6 +14,23 @@ class RepositoryInspectionRequest(BaseModel):
     )
 
 
+class RepositorySymbol(BaseModel):
+    """One provider-independent repository symbol."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+    )
+
+    name: str = Field(min_length=1)
+    kind: str = Field(min_length=1)
+    signature: str = Field(min_length=1)
+    line: int | None = Field(
+        default=None,
+        ge=1,
+    )
+
+
 class RepositoryEvidence(BaseModel):
     """One provider-independent repository evidence item."""
 
@@ -24,6 +41,9 @@ class RepositoryEvidence(BaseModel):
 
     target: str = Field(min_length=1)
     summary: str = Field(min_length=1)
+
+    symbols: tuple[RepositorySymbol, ...] = ()
+
     source_reference: str = Field(min_length=1)
 
 
