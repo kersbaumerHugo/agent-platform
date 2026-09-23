@@ -1,0 +1,29 @@
+[Unit]
+Description=Agent Platform M15 Trusted Verifier
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+
+User=root
+Group=agent-change
+UMask=0007
+
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+ExecStart=/opt/agent-platform/current/venv/bin/python \
+  -m agent_platform.trust.verification_runtime \
+  --socket /run/agent-platform-verifier/verifier.sock \
+  --workspace-root /var/lib/agent-platform/verification-workspaces \
+  --runtime-root /run/agent-platform-verifier \
+  --image sha256:74109157bffb9adb5f04ea13f2b227c3152f098bf9609b154f1eb670198f1578
+
+RuntimeDirectory=agent-platform-verifier
+RuntimeDirectoryMode=0770
+
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

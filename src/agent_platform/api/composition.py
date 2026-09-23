@@ -30,8 +30,12 @@ from agent_platform.adapters.runtimes.fake import FakeRuntime
 from agent_platform.adapters.runtimes.tool_calling import (
     ToolCallingRuntime,
 )
+from agent_platform.adapters.tools.coding import CodingTool
 from agent_platform.adapters.tools.repository import (
     RepositoryInspectionTool,
+)
+from agent_platform.api.coding_composition import (
+    build_supervised_coding_capability,
 )
 from agent_platform.application.capability_authorization import (
     StaticCapabilityAuthorizationPolicy,
@@ -59,17 +63,22 @@ from agent_platform.application.retrieval_acceptance import (
     LexicalRetrievalAcceptanceGate,
 )
 from agent_platform.application.tool_registry import ToolRegistry
+from agent_platform.contracts.capability import CapabilityContract
 from agent_platform.contracts.observability import ObservationContract
 from agent_platform.contracts.runtime import RuntimeContract
+from agent_platform.contracts.tool import ToolContract
+from agent_platform.domain.coding import CodingResult, CodingTask
 from agent_platform.domain.context_budget import ContextBudget
 
-AGENT_RUNTIME_PRINCIPAL = "system:agent-runtime"
+DEVELOPER_AGENT_ID = "developer-agent"
+DEVELOPER_AGENT_PRINCIPAL = "agent:developer-agent"
 
 
 def build_agent_tool_registry(
     env: Mapping[str, str] | None = None,
     *,
     observer: ObservationContract = default_observer,
+    coding_capability: CapabilityContract[CodingTask, CodingResult] | None = None,
 ) -> ToolRegistry:
     values = os.environ if env is None else env
 
@@ -116,13 +125,23 @@ def build_agent_tool_registry(
         repository_backend,
     )
 
-    authorization = StaticCapabilityAuthorizationPolicy(
-        grants=[
+    grants = [
+        (
+            DEVELOPER_AGENT_PRINCIPAL,
+            "repository.inspect",
+        )
+    ]
+
+    if coding_capability is not None:
+        grants.append(
             (
-                AGENT_RUNTIME_PRINCIPAL,
-                "repository.inspect",
+                DEVELOPER_AGENT_PRINCIPAL,
+                "coding.execute",
             )
-        ]
+        )
+
+    authorization = StaticCapabilityAuthorizationPolicy(
+        grants=grants,
     )
 
     repository_tool = RepositoryInspectionTool(
@@ -130,8 +149,20 @@ def build_agent_tool_registry(
         authorization,
     )
 
+    tools: list[ToolContract] = [
+        repository_tool,
+    ]
+
+    if coding_capability is not None:
+        tools.append(
+            CodingTool(
+                coding_capability,
+                authorization,
+            )
+        )
+
     return ToolRegistry(
-        [repository_tool],
+        tools,
         observer,
     )
 
@@ -201,12 +232,25 @@ def build_model_gateway(
         if not model:
             raise ValueError("LOCAL_MODEL_NAME is not configured.")
 
+        timeout_text = values.get(
+            "LOCAL_MODEL_TIMEOUT_SECONDS",
+            "90",
+        ).strip()
+
+        try:
+            timeout_seconds = float(timeout_text)
+        except ValueError as exc:
+            raise ValueError("LOCAL_MODEL_TIMEOUT_SECONDS must be a number.") from exc
+
+        if timeout_seconds <= 0:
+            raise ValueError("LOCAL_MODEL_TIMEOUT_SECONDS must be greater than 0.")
+
         return ModelGateway(
             LocalOpenAIModelAdapter(
                 api_key=api_key,
                 model=model,
                 base_url=base_url,
-                timeout_seconds=90.0,
+                timeout_seconds=timeout_seconds,
                 enable_thinking=False,
             ),
             observer=observer,
@@ -217,6 +261,8 @@ def build_model_gateway(
 
 def build_runtime(
     env: Mapping[str, str] | None = None,
+    *,
+    coding_capability: CapabilityContract[CodingTask, CodingResult] | None = None,
 ) -> RuntimeContract:
     values = os.environ if env is None else env
     runtime_name = (
@@ -235,7 +281,17 @@ def build_runtime(
         return _build_dsh_runtime(values)
 
     if runtime_name == "tool-calling":
-        return _build_tool_calling_runtime(values)
+        if coding_capability is None and _configured_bool(
+            values,
+            "AGENT_PLATFORM_CODING_ENABLED",
+            default=False,
+        ):
+            coding_capability = build_supervised_coding_capability(values)
+
+        return _build_tool_calling_runtime(
+            values,
+            coding_capability=coding_capability,
+        )
 
     raise ValueError(
         f"Unsupported AGENT_PLATFORM_RUNTIME {runtime_name!r}; "
@@ -245,14 +301,20 @@ def build_runtime(
 
 def _build_tool_calling_runtime(
     env: Mapping[str, str],
+    *,
+    coding_capability: CapabilityContract[CodingTask, CodingResult] | None = None,
 ) -> ToolCallingRuntime:
     gateway = build_model_gateway(env)
-    registry = build_agent_tool_registry(env)
+    registry = build_agent_tool_registry(
+        env,
+        coding_capability=coding_capability,
+    )
 
     return ToolCallingRuntime(
         gateway=gateway,
         registry=registry,
-        principal_id=AGENT_RUNTIME_PRINCIPAL,
+        agent_id=DEVELOPER_AGENT_ID,
+        principal_id=DEVELOPER_AGENT_PRINCIPAL,
     )
 
 
@@ -316,6 +378,30 @@ def build_context_preparation(
     )
 
     return prepare_context, budget
+
+
+def _configured_bool(
+    env: Mapping[str, str],
+    name: str,
+    *,
+    default: bool,
+) -> bool:
+    raw = (
+        env.get(
+            name,
+            "true" if default else "false",
+        )
+        .strip()
+        .lower()
+    )
+
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+
+    if raw in {"0", "false", "no", "off"}:
+        return False
+
+    raise ValueError(f"{name} must be a boolean.")
 
 
 def _configured_int(

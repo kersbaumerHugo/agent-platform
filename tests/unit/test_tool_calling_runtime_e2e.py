@@ -37,7 +37,8 @@ from agent_platform.domain.repository import (
 )
 
 TARGET = "src/agent_platform/domain/tool.py"
-PRINCIPAL = "system:agent-runtime"
+AGENT_ID = "developer-agent"
+PRINCIPAL = "agent:developer-agent"
 
 
 class NullObserver:
@@ -135,6 +136,7 @@ async def test_agent_executes_repository_capability_through_tool_runtime() -> No
     runtime = ToolCallingRuntime(
         gateway=gateway,
         registry=registry,
+        agent_id=AGENT_ID,
         principal_id=PRINCIPAL,
     )
 
@@ -161,12 +163,14 @@ async def test_agent_executes_repository_capability_through_tool_runtime() -> No
     first_request = gateway.requests[0]
 
     assert first_request.run_id == result.run_id
+    assert first_request.max_tokens is None
     assert [tool.name for tool in first_request.tools] == ["repository_inspect"]
 
     final_request = gateway.requests[1]
 
     assert final_request.run_id == result.run_id
     assert final_request.tools == []
+    assert final_request.max_tokens == 512
 
     assert [message.role for message in final_request.messages] == [
         MessageRole.USER,
@@ -210,6 +214,7 @@ async def test_agent_id_does_not_bypass_capability_authorization() -> None:
     runtime = ToolCallingRuntime(
         gateway=ScriptedGateway(),
         registry=registry,
+        agent_id="privileged-name",
         principal_id="mcp:anonymous",
     )
 
@@ -229,4 +234,55 @@ async def test_agent_id_does_not_bypass_capability_authorization() -> None:
     assert result.error is not None
     assert "capability_not_granted" in result.error
 
+    assert backend.requests == []
+
+
+@pytest.mark.asyncio
+async def test_runtime_rejects_agent_identity_mismatch() -> None:
+    backend = RecordingRepositoryBackend()
+
+    capability = RepositoryInspectionCapability(backend)
+
+    tool = RepositoryInspectionTool(
+        capability,
+        StaticCapabilityAuthorizationPolicy(
+            grants=[
+                (
+                    PRINCIPAL,
+                    "repository.inspect",
+                )
+            ]
+        ),
+    )
+
+    registry = ToolRegistry(
+        [tool],
+        NullObserver(),
+    )
+
+    gateway = ScriptedGateway()
+
+    runtime = ToolCallingRuntime(
+        gateway=gateway,
+        registry=registry,
+        agent_id=AGENT_ID,
+        principal_id=PRINCIPAL,
+    )
+
+    agent = RunAgent(
+        runtime=runtime,
+        observer=NullObserver(),
+    )
+
+    result = await agent.execute(
+        RunRequest(
+            agent_id="other-agent",
+            input="Inspect repository.",
+        )
+    )
+
+    assert result.status is RunStatus.FAILED
+    assert result.error == "agent_identity_mismatch"
+
+    assert gateway.requests == []
     assert backend.requests == []

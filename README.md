@@ -170,13 +170,15 @@ repository_inspect
 repository.inspect
 ```
 
-The runtime uses the platform-owned trusted principal:
+The trusted developer composition uses the platform-owned principal:
 
 ```text
-system:agent-runtime
+agent:developer-agent
 ```
 
-Authorization remains explicit and fail closed.
+The request `agent_id` is checked against the configured runtime identity, but it
+does not grant authority. Capability authorization remains bound to the trusted
+composition principal and fails closed.
 
 RepoWise is kept outside the Agent Platform Python environment and is invoked
 through MCP stdio as an isolated provider implementation.
@@ -314,6 +316,21 @@ git diff --check
 
 See `docs/evidence/m14-usable-agent-runtime-results.md`.
 
+### M15 — Trusted Developer Agent V1
+
+- [x] trusted developer-agent identity and fixed authorization principal;
+- [x] supervised `coding.execute` capability;
+- [x] trusted Docker sandbox behind a Unix socket;
+- [x] authoritative verifier behind a separate Unix socket;
+- [x] trusted publication bridge;
+- [x] immutable SHA-pinned coding and verifier images;
+- [x] DSH minimal runtime inside the coding sandbox;
+- [x] first real self-development run;
+- [x] verified change published as PR #84;
+- [x] CI passed and final merge remained human-controlled.
+
+See `docs/evidence/m15-trusted-developer-agent-results.md`.
+
 ## Next steps
 
 Build on the usable V1 runtime without widening platform abstractions unless new
@@ -325,7 +342,7 @@ The platform enables supervised coding through a trusted development boundary:
 
 - **Explicit capability authorization** - tools and actions require clear, typed capability grants;
 - **Isolated coding execution** - Worker subprocesses run in disposable workspaces with bounded lifetimes;
-- **Authoritative verification** - all tool results are validated through the platform-owned Authorization layer;
+- **Authoritative verification** - proposed changes are materialized and verified through a platform-owned trusted verifier before publication;
 - **Trusted pull-request publication** - verified changes are published through platform-managed CI/CD paths.
 
 This approach ensures that agent actions remain within a well-defined security envelope while maintaining developer control.

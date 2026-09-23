@@ -1,36 +1,119 @@
-# Trusted Publisher Deployment
+# Trusted Runtime Deployment
 
-This directory defines the operational trust boundary used by M6 self-development.
+This directory defines the operational trust boundary for supervised
+self-development.
+
+M6 introduced the trusted publisher. M15 extends that boundary with a trusted
+coding sandbox, authoritative verifier and non-root Agent Platform API.
+
+## Security invariant
+
+```text
+agent-platform API
+    |
+    +-- coding.sock --------> trusted sandbox daemon ----> Docker
+    |
+    +-- verifier.sock ------> trusted verifier daemon ---> Docker
+    |
+    +-- trusted-change.sock -> trusted publisher --------> GitHub
+
+agent-platform API -> Docker: NEVER
+```
+
+The API process must never receive Docker authority or the GitHub publisher
+credential.
+
+> Self-improvement does not imply self-governance.
 
 ## Identities
 
-The trusted publisher and Worker run under separate Unix identities:
+The deployment uses distinct Unix identities:
 
-- `agent-publisher`
-- `agent-worker`
-- shared IPC group: `agent-change`
+- `agent-platform` — non-root API/runtime identity;
+- `agent-publisher` — trusted GitHub publication authority;
+- `agent-worker` — Worker/publication IPC identity where required;
+- `agent-change` — shared Unix-socket IPC group.
 
-The Worker may access the Unix socket but must not access the publisher state, runtime, workspace, or GitHub credential.
+The `agent-platform` user may communicate with trusted services through their
+Unix sockets but must not belong to the Docker group.
 
-## Trusted state
+## Canonical systemd units
 
-Expected layout:
+The Git-tracked deployment definitions are:
 
 ```text
-/var/lib/agent-platform-publisher/
-├── repo/       # trusted runtime source
-├── venv/       # trusted runtime environment
-└── workspaces/ # parent for ephemeral publication-* workspaces
+deploy/trusted/agent-platform-m15-api.service
+deploy/trusted/agent-platform-m15-sandbox.service
+deploy/trusted/agent-platform-m15-verifier.service
+deploy/trusted/agent-platform-publisher.service
 ```
 
-`/var/lib/agent-platform-publisher` is owned by `agent-publisher` and mode `0700`.
+Only the sandbox and verifier daemons own Docker authority.
 
-## Credential
+The API remains non-root.
 
-The GitHub credential lives outside Git:
+## Immutable release layout
+
+Application releases are stored under:
 
 ```text
-/etc/agent-platform/publisher.env
+/opt/agent-platform/releases/m15-<git-sha>/
+```
+
+The systemd units reference:
+
+```text
+/opt/agent-platform/current
+```
+
+`current` is an operator-controlled symlink to one immutable, tested release.
+
+Example:
+
+```bash
+ln -sfn \
+  /opt/agent-platform/releases/m15-<git-sha> \
+  /opt/agent-platform/current
+```
+
+Changing the symlink is a deployment action. It is not available to the Worker.
+
+## M15 state layout
+
+Expected controller state:
+
+```text
+/var/lib/agent-platform/
+├── trusted-repo/
+├── workspaces/
+├── verification-workspaces/
+├── tools/
+└── bin/
+```
+
+RepoWise is installed outside the Agent Platform Python environment and exposed
+through:
+
+```text
+/var/lib/agent-platform/bin/repowise
+```
+
+## Trusted sockets
+
+```text
+/run/agent-platform-sandbox/coding.sock
+/run/agent-platform-verifier/verifier.sock
+/run/agent-platform/trusted-change.sock
+```
+
+Socket access is restricted through the `agent-change` group.
+
+## M15 environment
+
+Runtime configuration and model credentials are loaded from:
+
+```text
+/etc/agent-platform/m15.env
 ```
 
 Expected ownership and mode:
@@ -39,76 +122,98 @@ Expected ownership and mode:
 root:root 0600
 ```
 
-The file is loaded only by `agent-platform-publisher.service`.
+systemd reads the file before dropping privileges for the `agent-platform`
+service. The API process itself does not need filesystem read access to that
+file.
 
-The Worker must not receive this credential.
-
-## IPC
-
-The publisher exposes:
+The publisher credential remains separate:
 
 ```text
-/run/agent-platform/trusted-change.sock
+/etc/agent-platform/publisher.env
 ```
 
-The socket is accessible to group `agent-change`.
+It is loaded only by `agent-platform-publisher.service`.
 
-A Worker may submit a versioned `ChangeSet` request through this socket but cannot directly mutate the trusted workspace or publication mechanism.
+## Pinned execution images
 
-## Publication model
+M15 was validated with the following immutable images.
+
+Coding Worker:
 
 ```text
-Worker
+sha256:27fc10067e66f28a0644a7bcfa490f3e613e46f6b7846b456e773fbb31ffa1ee
+```
+
+Authoritative verifier:
+
+```text
+sha256:74109157bffb9adb5f04ea13f2b227c3152f098bf9609b154f1eb670198f1578
+```
+
+The coding sandbox remains:
+
+```text
+network none
+read-only root filesystem
+non-root Worker
+cap-drop ALL
+no-new-privileges
+bounded CPU / memory / PIDs
+16 MiB ephemeral /tmp
+no Docker socket
+no publisher socket
+Model Gateway access only through the trusted Unix-socket relay
+```
+
+`/tmp` is explicitly executable because the pinned DeepSeek Harness runtime
+loads native modules from its ephemeral cache. The mount remains `nosuid` and
+`nodev`.
+
+## Trusted coding flow
+
+```text
+Task
   ↓
-ChangeSet v1 JSON
+developer-agent
   ↓
-Unix socket
+coding.execute
   ↓
-TrustedChangeHandler
+trusted sandbox socket
   ↓
-ChangePolicy
+disposable Worker workspace
   ↓
-TrustedPublisher
+ChangeSet
   ↓
-GitRemoteChangeSink
+authoritative verifier socket
   ↓
-PullRequestChangeSink
+VerifiedChangeSet
   ↓
-GitHubPullRequestClient
+trusted publisher socket
   ↓
 Pull Request
   ↓
-Trusted CI gates
+Trusted CI
   ↓
-AWAITING_APPROVAL
+Human approval / merge
 ```
 
-No auto-merge is introduced in M6.
+No automatic merge authority is granted to the agent.
 
-## GitHub authority
+## Publication authority
 
-The trusted GitHub credential is scoped to the `agent-platform` repository.
+The GitHub credential is scoped to the `agent-platform` repository.
 
 Required repository permissions:
 
 - Contents: read/write
 - Pull requests: read/write
 
-No Actions, Workflows, Administration, Secrets, Environments, or repository-wide administrative permission is required.
-
-GitHub rulesets remain an independent remote enforcement layer. The default branch ruleset requires pull requests and the following status checks:
-
-- Syntax
-- Lint
-- Typecheck
-- Tests
-- Package
-
-No bypass actor is configured.
+No Actions, Workflows, Administration, Secrets, Environments or repository-wide
+administrative permission is required.
 
 ## Base revision invariant
 
-A publication request is accepted for remote publication only when:
+Publication is accepted only when:
 
 ```text
 ChangeSet.base_revision == remote/base_branch HEAD
@@ -120,19 +225,12 @@ For the current deployment:
 ChangeSet.base_revision == origin/main HEAD
 ```
 
-This prevents an apparently safe `ChangeSet` from inheriting unpublished local changes to protected or trusted paths.
-
-## Concurrency
-
-Publication is serialized inside the trusted handler.
-
-The current implementation intentionally allows only one publication to mutate the trusted Git workspace at a time. This is the minimum mechanism required for the current shared mutable workspace.
-
-A queue, broker, or distributed lock is not introduced without evidence that the current mechanism is insufficient.
+The exact ChangeSet that passes authoritative verification is the ChangeSet sent
+to the trusted publisher.
 
 ## Protected deployment
 
-The trusted deployment definition is part of the trust root and must be protected by `ChangePolicy`.
+The trusted deployment definition is part of the trust root.
 
 At minimum:
 
@@ -140,32 +238,36 @@ At minimum:
 deploy/trusted/**
 ```
 
-must be rejected when proposed by the Worker.
+must remain protected by `ChangePolicy`.
 
-Changing trusted deployment files can alter:
+A Worker must not be able to change:
 
-- the Unix identity executing the publisher;
+- trusted Unix identities;
+- Docker authority;
 - filesystem permissions;
-- network capability;
-- the trusted runtime binary;
-- the credential source;
-- writable filesystem locations;
-- the IPC boundary.
+- trusted runtime binaries;
+- credential sources;
+- trusted sockets;
+- verifier configuration;
+- publisher configuration;
+- deployment unit files.
 
-## Current known limitation
+## Concurrency
 
-The publication workspace is currently mutable and remains on the branch created by a successful publication until it is reset.
+Trusted publication remains serialized.
 
-The next planned hardening step is a disposable or resettable workspace per publication request.
+The current mechanism intentionally avoids queues, brokers or distributed locks
+until evidence requires them.
 
-This limitation does not change the trust decision model, but it must be removed before treating repeated autonomous publication as production-ready.
+## Known limitation
+
+The publisher workspace remains shared mutable state and can remain on the
+branch created by a successful publication until reset.
+
+This does not change the trust decision model, but disposable/resettable
+publication state remains a future hardening item.
 
 ## Security property
 
-> Self-improvement does not imply self-governance.
-
-A Worker may propose changes to the platform but cannot modify or bypass the mechanisms that decide whether its own changes are acceptable.
-
-The intended invariant is:
-
-> For any Worker Agent execution, no action available to the Worker can modify, replace, disable, or bypass the gates deciding promotion of its own change.
+For any Worker Agent execution, no action available to the Worker can modify,
+replace, disable or bypass the gates deciding promotion of its own change.

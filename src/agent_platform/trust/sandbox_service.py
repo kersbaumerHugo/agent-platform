@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -16,6 +17,8 @@ from agent_platform.trust.sandbox_execution import (
     deserialize_sandbox_execution_request,
     serialize_sandbox_execution_response,
 )
+
+logger = logging.getLogger(__name__)
 
 MAX_SANDBOX_REQUEST_BYTES = 1024 * 1024
 
@@ -80,6 +83,11 @@ class TrustedSandboxExecutionHandler:
                 summary=outcome.summary,
             )
         except Exception:
+            logger.exception(
+                "Trusted sandbox backend execution failed execution_id=%s",
+                request.execution_id,
+            )
+
             return self._error(
                 execution_id=request.execution_id,
                 error_code="execution_failed",

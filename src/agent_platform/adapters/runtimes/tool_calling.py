@@ -37,15 +37,21 @@ class ToolCallingRuntime:
         *,
         gateway: _ModelGatewayContract,
         registry: ToolRegistry,
+        agent_id: str,
         principal_id: str,
     ) -> None:
+        normalized_agent_id = agent_id.strip()
         normalized_principal = principal_id.strip()
+
+        if not normalized_agent_id:
+            raise ValueError("Tool-calling runtime agent_id must not be blank.")
 
         if not normalized_principal:
             raise ValueError("Tool-calling runtime principal_id must not be blank.")
 
         self._gateway = gateway
         self._registry = registry
+        self._agent_id = normalized_agent_id
         self._principal_id = normalized_principal
 
     @property
@@ -56,6 +62,9 @@ class ToolCallingRuntime:
         self,
         request: RuntimeRequest,
     ) -> RuntimeResult:
+        if request.agent_id.strip() != self._agent_id:
+            raise PermissionError("agent_identity_mismatch")
+
         tools = [
             ModelToolDefinition(
                 name=definition.name,
@@ -114,6 +123,7 @@ class ToolCallingRuntime:
                 run_id=request.run_id,
                 messages=messages,
                 tools=[],
+                max_tokens=512,
             )
         )
 

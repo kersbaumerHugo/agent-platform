@@ -42,7 +42,7 @@ class DockerSandboxConfig:
     pids_limit: int = 64
     memory_limit: str = "256m"
     cpu_limit: str = "1"
-    tmpfs_spec: str = "/tmp:rw,noexec,nosuid,nodev,size=16m"
+    tmpfs_spec: str = "/tmp:rw,exec,nosuid,nodev,size=16m"
 
     def __post_init__(self) -> None:
         if not _IMAGE_REFERENCE_PATTERN.fullmatch(self.image):
@@ -346,6 +346,16 @@ class DockerSandboxBackend:
             ("DEEPSEEK_API_KEY=sandbox-relay-placeholder"),
             "--env",
             ("AGENT_PLATFORM_GATEWAY_SOCKET=/run/model-gateway.sock"),
+            "--env",
+            "HOME=/tmp",
+            "--env",
+            "TMPDIR=/tmp",
+            "--env",
+            "XDG_CACHE_HOME=/tmp/.cache",
+            "--env",
+            "PYTHONUTF8=1",
+            "--env",
+            "PYTHONDONTWRITEBYTECODE=1",
             self._config.image,
             *self._config.command,
         )

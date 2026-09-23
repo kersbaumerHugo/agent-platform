@@ -8,7 +8,10 @@ from pathlib import Path
 from agent_platform.trust.change_request import (
     serialize_change_set,
 )
-from agent_platform.trust.publisher import ChangeSet
+from agent_platform.trust.publisher import (
+    ChangeSet,
+    PublicationResult,
+)
 
 
 class TrustedPublicationClientError(RuntimeError):
@@ -74,3 +77,39 @@ class TrustedPublicationClient:
         finally:
             writer.close()
             await writer.wait_closed()
+
+
+class TrustedPublicationAuthorityClient:
+    """Adapt the trusted publisher socket to the publication authority contract."""
+
+    def __init__(
+        self,
+        client: TrustedPublicationClient,
+    ) -> None:
+        self._client = client
+
+    async def publish(
+        self,
+        change_set: ChangeSet,
+    ) -> PublicationResult:
+        response = await self._client.publish(change_set)
+
+        if response.status != "accepted":
+            reason = (
+                response.reason_code or response.error_code or "trusted_publication_not_accepted"
+            )
+
+            raise TrustedPublicationClientError(
+                f"Trusted publisher did not accept ChangeSet: {reason}"
+            )
+
+        reference = response.reference
+
+        if reference is None or not reference.strip():
+            raise TrustedPublicationClientError(
+                "Trusted publisher accepted ChangeSet without a reference."
+            )
+
+        return PublicationResult(
+            reference=reference,
+        )
