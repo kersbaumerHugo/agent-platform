@@ -262,6 +262,7 @@ def build_model_gateway(
 def build_runtime(
     env: Mapping[str, str] | None = None,
     *,
+    observer: ObservationContract = default_observer,
     coding_capability: CapabilityContract[CodingTask, CodingResult] | None = None,
 ) -> RuntimeContract:
     values = os.environ if env is None else env
@@ -290,6 +291,7 @@ def build_runtime(
 
         return _build_tool_calling_runtime(
             values,
+            observer=observer,
             coding_capability=coding_capability,
         )
 
@@ -302,11 +304,16 @@ def build_runtime(
 def _build_tool_calling_runtime(
     env: Mapping[str, str],
     *,
+    observer: ObservationContract,
     coding_capability: CapabilityContract[CodingTask, CodingResult] | None = None,
 ) -> ToolCallingRuntime:
-    gateway = build_model_gateway(env)
+    gateway = build_model_gateway(
+        env,
+        observer=observer,
+    )
     registry = build_agent_tool_registry(
         env,
+        observer=observer,
         coding_capability=coding_capability,
     )
 
