@@ -318,3 +318,14 @@ See `docs/evidence/m14-usable-agent-runtime-results.md`.
 
 Build on the usable V1 runtime without widening platform abstractions unless new
 evidence justifies it.
+
+## Trusted Developer Agent
+
+The platform enables supervised coding through a trusted development boundary:
+
+- **Explicit capability authorization** - tools and actions require clear, typed capability grants;
+- **Isolated coding execution** - Worker subprocesses run in disposable workspaces with bounded lifetimes;
+- **Authoritative verification** - all tool results are validated through the platform-owned Authorization layer;
+- **Trusted pull-request publication** - verified changes are published through platform-managed CI/CD paths.
+
+This approach ensures that agent actions remain within a well-defined security envelope while maintaining developer control.
