@@ -21,6 +21,8 @@ from agent_platform.domain.tool import (
     ToolResult,
 )
 
+_MAX_TOOL_ROUNDS = 2
+
 
 class _ModelGatewayContract(Protocol):
     async def generate(
@@ -30,7 +32,7 @@ class _ModelGatewayContract(Protocol):
 
 
 class ToolCallingRuntime:
-    """Bounded runtime that executes one model tool-call round."""
+    """Bounded runtime that executes at most two model tool-call rounds."""
 
     def __init__(
         self,
@@ -81,42 +83,43 @@ class ToolCallingRuntime:
             )
         ]
 
-        first = await self._gateway.generate(
-            ModelRequest(
-                run_id=request.run_id,
-                messages=messages,
-                tools=tools,
+        for _ in range(_MAX_TOOL_ROUNDS):
+            result = await self._gateway.generate(
+                ModelRequest(
+                    run_id=request.run_id,
+                    messages=messages,
+                    tools=tools,
+                )
             )
-        )
 
-        if not first.tool_calls:
-            return RuntimeResult(output=self._require_final_output(first))
-
-        messages.append(
-            ModelMessage(
-                role=MessageRole.ASSISTANT,
-                content=first.output or None,
-                tool_calls=first.tool_calls,
-            )
-        )
-
-        for tool_call in first.tool_calls:
-            tool_result = await self._invoke_tool(
-                request,
-                tool_call,
-            )
+            if not result.tool_calls:
+                return RuntimeResult(output=self._require_final_output(result))
 
             messages.append(
                 ModelMessage(
-                    role=MessageRole.TOOL,
-                    content=json.dumps(
-                        tool_result.output,
-                        separators=(",", ":"),
-                        sort_keys=True,
-                    ),
-                    tool_call_id=tool_call.id,
+                    role=MessageRole.ASSISTANT,
+                    content=result.output or None,
+                    tool_calls=result.tool_calls,
                 )
             )
+
+            for tool_call in result.tool_calls:
+                tool_result = await self._invoke_tool(
+                    request,
+                    tool_call,
+                )
+
+                messages.append(
+                    ModelMessage(
+                        role=MessageRole.TOOL,
+                        content=json.dumps(
+                            tool_result.output,
+                            separators=(",", ":"),
+                            sort_keys=True,
+                        ),
+                        tool_call_id=tool_call.id,
+                    )
+                )
 
         final = await self._gateway.generate(
             ModelRequest(
@@ -128,7 +131,9 @@ class ToolCallingRuntime:
         )
 
         if final.tool_calls:
-            raise RuntimeError("Tool-calling runtime exceeded the V0 one-round tool-call limit.")
+            raise RuntimeError(
+                "Tool-calling runtime exceeded the configured two-round tool-call limit."
+            )
 
         return RuntimeResult(output=self._require_final_output(final))
 
