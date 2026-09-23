@@ -169,3 +169,26 @@ repository.inspect
 
 without removing the exact base-revision requirement or introducing an
 unbounded autonomous loop.
+
+## Deployment-as-code closure
+
+After merging M15, the production host was rebuilt from the Git-tracked release
+and systemd units.
+
+That reproduction exposed one configuration drift: the API unit did not
+explicitly select the local model provider and therefore fell back to the
+OpenRouter default.
+
+The versioned API unit was corrected to define:
+
+```text
+MODEL_PROVIDER=local
+LOCAL_MODEL_BASE_URL=http://192.168.10.40:8080/v1
+LOCAL_MODEL_NAME=qwen3.5-9b-local
+LOCAL_MODEL_TIMEOUT_SECONDS=180
+```
+
+The model API key remains outside Git in `/etc/agent-platform/m15.env`.
+
+This operational reproduction converted the previously manual deployment state
+into a Git-reproducible M15 deployment definition.
