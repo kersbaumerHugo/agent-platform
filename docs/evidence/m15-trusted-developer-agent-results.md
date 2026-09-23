@@ -2,9 +2,9 @@
 
 ## Objective
 
-Prove that the Agent Platform can perform one real supervised self-development
-task without granting the agent Docker authority, publisher credentials or
-automatic merge authority.
+Prove that the Agent Platform can perform real supervised self-development
+without granting the agent Docker authority, publisher credentials or automatic
+merge authority.
 
 ## Accepted trust boundary
 
@@ -15,7 +15,7 @@ developer-agent
   ↓
 ToolCallingRuntime
   ↓
-coding.execute
+repository_inspect / coding_execute
   ↓
 trusted sandbox over Unix socket
   ↓
@@ -146,34 +146,14 @@ GitHub CI completed successfully.
 The pull request was merged manually by a human. No auto-merge authority was
 granted to the agent.
 
-## Result
-
-M15 demonstrated a real self-development path in which the agent can propose,
-execute, verify and publish a code change while the mechanisms deciding
-promotion remain outside agent authority.
-
-## Remaining bounded-runtime limitation
-
-The current `ToolCallingRuntime` permits one model tool-call round.
-
-The first M15 production run therefore supplied the exact expected base revision
-directly to `coding.execute`.
-
-A future bounded multi-round runtime may be justified to support:
-
-```text
-repository.inspect
-→ reason over evidence
-→ coding.execute
-```
-
-without removing the exact base-revision requirement or introducing an
-unbounded autonomous loop.
+This first run proved supervised self-development, but the exact base revision
+was supplied directly to `coding_execute` because the runtime still supported
+only one model tool-call round.
 
 ## Deployment-as-code closure
 
-After merging M15, the production host was rebuilt from the Git-tracked release
-and systemd units.
+After merging the initial M15 implementation, the production host was rebuilt
+from the Git-tracked release and systemd units.
 
 That reproduction exposed one configuration drift: the API unit did not
 explicitly select the local model provider and therefore fell back to the
@@ -192,3 +172,194 @@ The model API key remains outside Git in `/etc/agent-platform/m15.env`.
 
 This operational reproduction converted the previously manual deployment state
 into a Git-reproducible M15 deployment definition.
+
+## M15.6 — Bounded Multi-Round Tool Loop
+
+M15.6 replaced the one-round runtime limitation with a hard upper bound of two
+model tool-call rounds.
+
+The accepted runtime shape is:
+
+```text
+model
+  ↓
+tool round 1
+  ↓
+tool result returned to model
+  ↓
+tool round 2
+  ↓
+tool result returned to model
+  ↓
+final model response with tools disabled
+```
+
+The runtime fails closed if the model requests another tool after the configured
+two-round limit.
+
+The limit is intentionally fixed in V1 rather than exposed as another runtime
+configuration surface.
+
+## RepoWise production integration findings
+
+The first M15.6 production attempt failed closed during `repository_inspect`
+because the trusted repository had no RepoWise index.
+
+Production bootstrap therefore requires a RepoWise index for the trusted
+repository before repository inspection can be used.
+
+The second production finding was a representation mismatch:
+
+```text
+RepoWise indexed_commit: 12-character abbreviated Git revision
+coding_execute contract: full 40-character Git SHA-1
+```
+
+The RepoWise adapter now resolves the provider revision against the trusted
+repository using Git and exposes the full commit SHA to platform consumers.
+
+If the provider revision cannot be resolved to a full commit, the adapter fails
+closed.
+
+The strict `coding_execute.expected_base_revision` contract remains unchanged.
+
+## M15.6 production self-development run
+
+The final production validation was executed without supplying a Git SHA in the
+task prompt.
+
+Run:
+
+```text
+c66f9473-ff05-422b-8b09-0253617c656b
+```
+
+Starting base revision:
+
+```text
+7072c45fc95f71c99a7994cc46cd268882f24d7a
+```
+
+Task:
+
+```text
+Inspect README.md first.
+Use the repository evidence to determine the exact base revision.
+Then update the outdated one-round runtime statement to the new hard
+two-round tool-call limit without unrelated changes.
+```
+
+Observed path:
+
+```text
+repository_inspect
+  ↓
+RepoWise evidence + abbreviated indexed commit
+  ↓
+adapter resolves full Git SHA
+  ↓
+model reasons over returned tool evidence
+  ↓
+coding_execute(expected_base_revision=<full SHA>)
+  ↓
+trusted sandbox
+  ↓
+authoritative verification
+  ↓
+trusted publisher
+  ↓
+PR #89
+```
+
+Result:
+
+```text
+status=succeeded
+changed_paths=README.md
+base_revision=7072c45fc95f71c99a7994cc46cd268882f24d7a
+pull_request=89
+```
+
+PR #89 contained one targeted file change with one addition and one deletion.
+
+The pull request was merged manually by a human.
+
+Main after merge:
+
+```text
+ccff6a93833385c8d749090e446304c511d86d1b
+```
+
+## Runtime timing evidence
+
+The production run completed in approximately 529 seconds.
+
+Observed main-run timings included:
+
+```text
+repository_inspect ≈ 3.64 s
+model reasoning before coding_execute ≈ 58.70 s
+coding_execute ≈ 323.94 s
+final model response ≈ 129.87 s
+```
+
+The evidence does not point to repository inspection or platform tool
+orchestration as the dominant latency source. Most elapsed time was spent in
+coding execution and model inference.
+
+No additional platform abstraction was introduced in response to this timing
+evidence.
+
+## Operational closure
+
+The final M15 production state retains:
+
+```text
+current release:
+m15-ccff6a938333
+
+known rollback release:
+m15-7072c45fc95f
+```
+
+The trusted repository, runtime release and RepoWise index were aligned to the
+production Git revision during final cleanup.
+
+The M15 services remain enabled and active:
+
+```text
+agent-platform-m15-sandbox
+agent-platform-m15-verifier
+agent-platform-m15-api
+```
+
+## Result
+
+M15 and M15.6 demonstrated a real bounded self-development path:
+
+```text
+inspect
+→ reason
+→ code
+→ verify
+→ publish
+→ human merge
+```
+
+The agent obtained its own repository evidence and exact base revision instead
+of receiving the revision in the prompt.
+
+The mechanisms deciding promotion remained outside agent authority throughout
+the flow.
+
+## Closure
+
+```text
+M15   Trusted Developer Agent V1        CLOSED
+M15.6 Bounded Multi-Round Tool Loop     CLOSED
+Real self-development E2E               PASS
+Human merge authority                   PRESERVED
+```
+
+Further platform complexity should require new evidence rather than extending
+this trust boundary speculatively.
