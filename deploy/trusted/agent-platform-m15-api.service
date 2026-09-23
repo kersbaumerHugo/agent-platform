@@ -1,0 +1,46 @@
+[Unit]
+Description=Agent Platform M15 API
+After=network-online.target agent-platform-m15-sandbox.service agent-platform-m15-verifier.service agent-platform-publisher.service
+Wants=network-online.target agent-platform-m15-sandbox.service agent-platform-m15-verifier.service agent-platform-publisher.service
+
+[Service]
+Type=simple
+
+User=agent-platform
+Group=agent-platform
+SupplementaryGroups=agent-change
+UMask=0007
+
+EnvironmentFile=/etc/agent-platform/m15.env
+Environment=PATH=/var/lib/agent-platform/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+Environment=AGENT_PLATFORM_RUNTIME=tool-calling
+Environment=AGENT_PLATFORM_REPOSITORY_PATH=/var/lib/agent-platform/trusted-repo
+Environment=AGENT_PLATFORM_REPOWISE_COMMAND=/var/lib/agent-platform/bin/repowise
+
+Environment=AGENT_PLATFORM_CODING_ENABLED=true
+Environment=AGENT_PLATFORM_CODING_REPOSITORY_URL=https://github.com/kersbaumerHugo/agent-platform.git
+Environment=AGENT_PLATFORM_CODING_TRUSTED_REPOSITORY_PATH=/var/lib/agent-platform/trusted-repo
+Environment=AGENT_PLATFORM_CODING_WORKSPACE_PARENT=/var/lib/agent-platform/workspaces
+Environment=AGENT_PLATFORM_CODING_SANDBOX_SOCKET=/run/agent-platform-sandbox/coding.sock
+Environment=AGENT_PLATFORM_CODING_VERIFICATION_WORKSPACE_PARENT=/var/lib/agent-platform/verification-workspaces
+Environment=AGENT_PLATFORM_CODING_VERIFIER_SOCKET=/run/agent-platform-verifier/verifier.sock
+Environment=AGENT_PLATFORM_CODING_PUBLISHER_SOCKET=/run/agent-platform/trusted-change.sock
+Environment=AGENT_PLATFORM_CODING_BASE_BRANCH=main
+
+WorkingDirectory=/var/lib/agent-platform/trusted-repo
+
+ExecStart=/opt/agent-platform/current/venv/bin/python \
+  -m uvicorn agent_platform.api.main:app \
+  --host 127.0.0.1 \
+  --port 8015
+
+Restart=on-failure
+RestartSec=2
+
+NoNewPrivileges=yes
+
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

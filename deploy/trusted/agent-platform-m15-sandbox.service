@@ -1,0 +1,37 @@
+[Unit]
+Description=Agent Platform M15 Trusted Coding Sandbox
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+
+User=root
+Group=agent-change
+UMask=0007
+
+EnvironmentFile=/etc/agent-platform/m15.env
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+ExecStart=/opt/agent-platform/current/venv/bin/python \
+  -m agent_platform.trust.sandbox_runtime \
+  --socket /run/agent-platform-sandbox/coding.sock \
+  --workspace-root /var/lib/agent-platform/workspaces \
+  --runtime-root /run/agent-platform-sandbox \
+  --image sha256:27fc10067e66f28a0644a7bcfa490f3e613e46f6b7846b456e773fbb31ffa1ee \
+  --gateway-host 127.0.0.1 \
+  --gateway-port 8015 \
+  --provider deepseek-official \
+  --model qwen3.5-9b-local \
+  --profile sdk-minimal \
+  --request-timeout-seconds 180
+
+RuntimeDirectory=agent-platform-sandbox
+RuntimeDirectoryMode=0770
+
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
