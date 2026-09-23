@@ -1,3 +1,5 @@
+import subprocess
+
 import pytest
 
 from agent_platform.adapters.repository.repowise_mcp import (
@@ -72,6 +74,77 @@ def test_parser_maps_real_repowise_context_contract() -> None:
     assert result.items[0].symbols[0].line == 7
 
     assert result.items[0].symbols[1].name == "ToolRequest"
+
+
+@pytest.mark.asyncio
+async def test_client_resolves_abbreviated_indexed_commit_to_full_sha(tmp_path) -> None:
+    subprocess.run(
+        ["git", "init", "-q"],
+        cwd=tmp_path,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=tmp_path,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    tracked = tmp_path / "README.md"
+    tracked.write_text("test\n", encoding="utf-8")
+
+    subprocess.run(
+        ["git", "add", "README.md"],
+        cwd=tmp_path,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "test"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    full_revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    client = RepoWiseMCPClient(tmp_path)
+
+    resolved = await client._resolve_full_git_revision(
+        full_revision[:12],
+    )
+
+    assert resolved == full_revision
+    assert len(resolved) == 40
+
+
+@pytest.mark.asyncio
+async def test_client_fails_closed_when_indexed_commit_cannot_be_resolved(
+    tmp_path,
+) -> None:
+    subprocess.run(
+        ["git", "init", "-q"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    client = RepoWiseMCPClient(tmp_path)
+
+    with pytest.raises(
+        ValueError,
+        match="could not be resolved",
+    ):
+        await client._resolve_full_git_revision(
+            "deadbeefdead",
+        )
 
 
 @pytest.mark.parametrize(

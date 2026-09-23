@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -47,10 +48,52 @@ class RepoWiseMCPClient:
         if result.is_error:
             raise RuntimeError("RepoWise get_context returned an MCP error.")
 
-        return self._parse_context(
+        snapshot = self._parse_context(
             result.structured_content,
             targets,
         )
+
+        if snapshot.indexed_commit is None:
+            return snapshot
+
+        full_revision = await self._resolve_full_git_revision(
+            snapshot.indexed_commit,
+        )
+
+        return snapshot.model_copy(
+            update={
+                "indexed_commit": full_revision,
+            }
+        )
+
+    async def _resolve_full_git_revision(
+        self,
+        revision: str,
+    ) -> str:
+        process = await asyncio.create_subprocess_exec(
+            "git",
+            "rev-parse",
+            "--verify",
+            f"{revision}^{{commit}}",
+            cwd=self._repository_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await process.communicate()
+
+        if process.returncode != 0:
+            raise ValueError("RepoWise indexed commit could not be resolved in the repository.")
+
+        resolved = stdout.decode("utf-8").strip().lower()
+
+        if len(resolved) != 40 or any(
+            character not in "0123456789abcdef" for character in resolved
+        ):
+            raise ValueError(
+                "RepoWise indexed commit did not resolve to a full 40-character Git SHA-1."
+            )
+
+        return resolved
 
     @staticmethod
     def _parse_context(
