@@ -235,7 +235,7 @@ curl -sS \
 The accepted V1 composition remains intentionally bounded:
 
 ```text
-one model tool-call round
+two model tool-call rounds
 explicit capability grants
 no dynamic RBAC
 no autonomous tool loop
