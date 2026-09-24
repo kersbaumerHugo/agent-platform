@@ -8,6 +8,7 @@ from agent_platform.adapters.capabilities.coding import (
 )
 from agent_platform.adapters.workers.supervised_coding import (
     WorkerCodingChangeProducer,
+    WorkerCodingRepairProducer,
 )
 from agent_platform.adapters.workers.trusted_sandbox import (
     TrustedSandboxWorkerExecutor,
@@ -92,16 +93,18 @@ def build_supervised_coding_capability(
     if not base_branch:
         raise ValueError("AGENT_PLATFORM_CODING_BASE_BRANCH must not be blank.")
 
+    sandbox_executor = TrustedSandboxWorkerExecutor(
+        socket_path=sandbox_socket,
+        workspace_root=worker_workspace_parent,
+    )
+
     session = WorkerDevelopmentSession(
         workspace=DisposableWorkerWorkspace(
             repository_url=repository_url,
             workspace_parent=worker_workspace_parent,
             base_branch=base_branch,
         ),
-        executor=TrustedSandboxWorkerExecutor(
-            socket_path=sandbox_socket,
-            workspace_root=worker_workspace_parent,
-        ),
+        executor=sandbox_executor,
     )
 
     preparation = SupervisedCodingService(
@@ -110,13 +113,18 @@ def build_supervised_coding_capability(
         ),
     )
 
-    materializer = DisposableChangeSetMaterializer(
+    verification_materializer = DisposableChangeSetMaterializer(
         trusted_repo_root=trusted_repository,
         workspace_parent=verification_workspace_parent,
     )
 
+    repair_materializer = DisposableChangeSetMaterializer(
+        trusted_repo_root=trusted_repository,
+        workspace_parent=worker_workspace_parent,
+    )
+
     verification = ChangeSetVerificationService(
-        materializer=materializer,
+        materializer=verification_materializer,
         verifier=TrustedVerificationClient(
             socket_path=verifier_socket,
             workspace_root=verification_workspace_parent,
@@ -134,6 +142,10 @@ def build_supervised_coding_capability(
     service = SupervisedCodingPublicationService(
         preparation=preparation,
         verification=verification,
+        repairer=WorkerCodingRepairProducer(
+            materializer=repair_materializer,
+            executor=sandbox_executor,
+        ),
         publisher=publisher,
     )
 

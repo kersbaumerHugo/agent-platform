@@ -13,13 +13,20 @@ from agent_platform.domain.coding import (
     CodingTask,
     CodingVerificationOutcome,
 )
+from agent_platform.trust.change_set_identity import identify_change_set
 from agent_platform.trust.publisher import ChangeSet
-from agent_platform.trust.verification_binding import VerifiedChangeSet
+from agent_platform.trust.verification import VerificationResult
+from agent_platform.trust.verification_binding import (
+    VerificationRejectedError,
+    VerifiedChangeSet,
+)
 from agent_platform.trust.verified_publication import VerifiedPublicationResult
 
 _GITHUB_PULL_REQUEST_PATTERN = re.compile(
     r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/([1-9][0-9]*)$"
 )
+
+MAX_VERIFICATION_REPAIR_ATTEMPTS = 2
 
 
 class CodingPreparationService(Protocol):
@@ -34,6 +41,17 @@ class CodingVerificationService(Protocol):
         self,
         change_set: ChangeSet,
     ) -> VerifiedChangeSet: ...
+
+
+class CodingRepairProducer(Protocol):
+    async def repair(
+        self,
+        *,
+        task: CodingTask,
+        candidate: ChangeSet,
+        verification: VerificationResult,
+        attempt: int,
+    ) -> ChangeSet: ...
 
 
 class CodingVerifiedPublisher(Protocol):
@@ -51,8 +69,20 @@ class CodingTaskIdentityMismatchError(RuntimeError):
     pass
 
 
+class CodingRepairBaseRevisionMismatchError(RuntimeError):
+    pass
+
+
+class CodingRepairMetadataMismatchError(RuntimeError):
+    pass
+
+
+class CodingRepairNoChangeError(RuntimeError):
+    pass
+
+
 class SupervisedCodingPublicationService:
-    """Prepare, verify, and publish one supervised coding task fail-closed."""
+    """Prepare, verify, repair if needed, and publish one coding task fail-closed."""
 
     def __init__(
         self,
@@ -60,11 +90,13 @@ class SupervisedCodingPublicationService:
         preparation: CodingPreparationService,
         verification: CodingVerificationService,
         publisher: CodingVerifiedPublisher,
+        repairer: CodingRepairProducer | None = None,
         tracer: Tracer | None = None,
     ) -> None:
         self._preparation = preparation
         self._verification = verification
         self._publisher = publisher
+        self._repairer = repairer
         self._tracer = tracer or trace.get_tracer("agent_platform.coding")
 
     async def execute(
@@ -94,8 +126,42 @@ class SupervisedCodingPublicationService:
                         "Prepared coding task identity does not match requested task."
                     )
 
-                verified = await self._verification.verify(
-                    prepared.change_set,
+                candidate = prepared.change_set
+                repair_attempts = 0
+
+                while True:
+                    try:
+                        verified = await self._verification.verify(candidate)
+                    except VerificationRejectedError as exc:
+                        if (
+                            self._repairer is None
+                            or repair_attempts >= MAX_VERIFICATION_REPAIR_ATTEMPTS
+                        ):
+                            raise
+
+                        repair_attempts += 1
+
+                        repaired = await self._repairer.repair(
+                            task=task,
+                            candidate=candidate,
+                            verification=exc.result,
+                            attempt=repair_attempts,
+                        )
+
+                        self._validate_repair(
+                            task=task,
+                            previous=candidate,
+                            repaired=repaired,
+                        )
+
+                        candidate = repaired
+                        continue
+
+                    break
+
+                span.set_attribute(
+                    "agent_platform.coding.repair.attempts",
+                    repair_attempts,
                 )
 
                 verification_outcome = CodingVerificationOutcome(
@@ -161,3 +227,31 @@ class SupervisedCodingPublicationService:
                     )
                 )
                 raise
+
+    @staticmethod
+    def _validate_repair(
+        *,
+        task: CodingTask,
+        previous: ChangeSet,
+        repaired: ChangeSet,
+    ) -> None:
+        if (
+            repaired.base_revision != previous.base_revision
+            or repaired.base_revision != task.expected_base_revision
+        ):
+            raise CodingRepairBaseRevisionMismatchError(
+                "Repaired ChangeSet must preserve the trusted base revision."
+            )
+
+        if (
+            repaired.branch_name != previous.branch_name
+            or repaired.commit_message != previous.commit_message
+        ):
+            raise CodingRepairMetadataMismatchError(
+                "Repaired ChangeSet must preserve platform-owned publication metadata."
+            )
+
+        if identify_change_set(repaired) == identify_change_set(previous):
+            raise CodingRepairNoChangeError(
+                "Repair attempt did not change the candidate ChangeSet."
+            )
