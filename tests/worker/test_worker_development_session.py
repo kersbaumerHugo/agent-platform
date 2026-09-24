@@ -12,6 +12,7 @@ from agent_platform.worker.session import (
     WorkerDevelopmentTask,
     WorkerExecutionRequest,
     WorkerExecutionResult,
+    WorkerNoChangesError,
 )
 from agent_platform.worker.workspace import (
     DisposableWorkerWorkspace,
@@ -106,6 +107,48 @@ class FailingExecutor:
         raise RuntimeError("executor failed")
 
 
+@dataclass
+class NoChangeThenChangeExecutor:
+    calls: int = 0
+    first_execution_id: object | None = None
+    retry_execution_id: object | None = None
+
+    async def execute(
+        self,
+        request: WorkerExecutionRequest,
+    ) -> WorkerExecutionResult:
+        self.calls += 1
+
+        if self.calls == 1:
+            self.first_execution_id = request.execution_id
+            return WorkerExecutionResult(summary="Let me inspect the repository first.")
+
+        self.retry_execution_id = request.execution_id
+
+        assert "final bounded implementation retry" in request.goal
+
+        (request.workspace / "retry-output.txt").write_text(
+            "created on retry\n",
+            encoding="utf-8",
+        )
+
+        return WorkerExecutionResult(summary="Created retry-output.txt.")
+
+
+@dataclass
+class AlwaysNoChangeExecutor:
+    calls: int = 0
+
+    async def execute(
+        self,
+        request: WorkerExecutionRequest,
+    ) -> WorkerExecutionResult:
+        del request
+        self.calls += 1
+
+        return WorkerExecutionResult(summary=f"planning attempt {self.calls}")
+
+
 @pytest.mark.asyncio
 async def test_session_builds_change_set_and_cleans_workspace(
     tmp_path: Path,
@@ -168,5 +211,76 @@ async def test_session_cleans_workspace_when_executor_fails(
                 commit_message="test: failure",
             )
         )
+
+    assert list(parent.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_session_retries_once_when_first_attempt_has_no_changes(
+    tmp_path: Path,
+    remote_repo: tuple[Path, str],
+) -> None:
+    remote, revision = remote_repo
+    parent = tmp_path / "workspaces"
+    executor = NoChangeThenChangeExecutor()
+
+    session = WorkerDevelopmentSession(
+        workspace=DisposableWorkerWorkspace(
+            repository_url=str(remote),
+            workspace_parent=parent,
+        ),
+        executor=executor,
+    )
+
+    change_set = await session.run(
+        WorkerDevelopmentTask(
+            goal="Create retry output.",
+            branch_name="agent/retry-test",
+            commit_message="test: retry worker",
+        )
+    )
+
+    assert executor.calls == 2
+    assert executor.first_execution_id is not None
+    assert executor.retry_execution_id is not None
+    assert executor.first_execution_id != executor.retry_execution_id
+
+    assert change_set.base_revision == revision
+    assert change_set.changed_paths == ("retry-output.txt",)
+    assert change_set.changes[0].content == "created on retry\n"
+
+    assert list(parent.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_session_fails_after_bounded_no_change_retry(
+    tmp_path: Path,
+    remote_repo: tuple[Path, str],
+) -> None:
+    remote, _ = remote_repo
+    parent = tmp_path / "workspaces"
+    executor = AlwaysNoChangeExecutor()
+
+    session = WorkerDevelopmentSession(
+        workspace=DisposableWorkerWorkspace(
+            repository_url=str(remote),
+            workspace_parent=parent,
+        ),
+        executor=executor,
+    )
+
+    with pytest.raises(WorkerNoChangesError) as exc_info:
+        await session.run(
+            WorkerDevelopmentTask(
+                goal="Create something.",
+                branch_name="agent/no-change",
+                commit_message="test: no change",
+            )
+        )
+
+    assert executor.calls == 2
+    assert exc_info.value.first_summary == "planning attempt 1"
+    assert exc_info.value.retry_summary == "planning attempt 2"
+    assert "two attempts" in str(exc_info.value)
 
     assert list(parent.iterdir()) == []

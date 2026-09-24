@@ -9,6 +9,7 @@ from agent_platform.trust.publisher import (
 from agent_platform.worker.change_set import (
     ChangeSetBuilder,
     ChangeSetBuildError,
+    WorkspaceContainsNoChangesError,
 )
 
 
@@ -153,7 +154,7 @@ def test_rejects_clean_workspace(
     workspace, _ = repo
 
     with pytest.raises(
-        ChangeSetBuildError,
+        WorkspaceContainsNoChangesError,
         match="contains no changes",
     ):
         ChangeSetBuilder(workspace).build(
