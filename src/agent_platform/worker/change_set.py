@@ -14,6 +14,10 @@ class ChangeSetBuildError(RuntimeError):
     pass
 
 
+class WorkspaceContainsNoChangesError(ChangeSetBuildError):
+    pass
+
+
 class ChangeSetBuilder:
     """Build a ChangeSet from an untrusted Git working tree."""
 
@@ -38,7 +42,7 @@ class ChangeSetBuilder:
         changes = self._collect_changes()
 
         if not changes:
-            raise ChangeSetBuildError("Workspace contains no changes.")
+            raise WorkspaceContainsNoChangesError("Workspace contains no changes.")
 
         return ChangeSet(
             base_revision=base_revision,
