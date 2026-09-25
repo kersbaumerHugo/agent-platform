@@ -13,6 +13,42 @@ from agent_platform.worker.session import WorkerExecutionRequest
 _GATEWAY_HOST = "127.0.0.1"
 _GATEWAY_PORT = 18080
 _DSH_HOME = Path("/tmp/agent-platform-dsh")
+_DSH_CONTEXT_PATCH = _DSH_HOME / "context-policy.patch.yml"
+
+_COMPACTION_THRESHOLD_RATIO = 0.55
+_COMPACTION_RETAIN_TOKENS = 1024
+_COMPACTION_MAX_TOKENS = 768
+_COMPACTION_RETRIES = 1
+_MAX_OVERFLOW_RETRIES = 1
+
+
+def _context_policy_patch(
+    *,
+    context_window: int,
+    max_output_tokens: int,
+) -> str:
+    return (
+        "- id: llm-deepseek\n"
+        "  config:\n"
+        "    apiKeyEnv: DEEPSEEK_API_KEY\n"
+        f"    defaultContextWindow: {context_window}\n"
+        f"    maxTokens: {max_output_tokens}\n"
+        "    streamIdleTimeoutMs: 172800000\n"
+        "\n"
+        "- insert:\n"
+        "    - id: token-meter\n"
+        "      name: '@deepseek-ai/dsh-token-meter'\n"
+        "\n"
+        "    - id: compaction-basic\n"
+        "      name: '@deepseek-ai/dsh-compaction-basic'\n"
+        "      config:\n"
+        f"        thresholdRatio: {_COMPACTION_THRESHOLD_RATIO}\n"
+        f"        retainTokens: {_COMPACTION_RETAIN_TOKENS}\n"
+        f"        maxTokens: {_COMPACTION_MAX_TOKENS}\n"
+        f"        compactionRetries: {_COMPACTION_RETRIES}\n"
+        f"        maxOverflowRetries: {_MAX_OVERFLOW_RETRIES}\n"
+        "        auto: true\n"
+    )
 
 
 def _content_length(headers: bytes) -> int:
@@ -110,6 +146,14 @@ async def _run(args: argparse.Namespace) -> int:
         exist_ok=True,
     )
 
+    _DSH_CONTEXT_PATCH.write_text(
+        _context_policy_patch(
+            context_window=args.context_window,
+            max_output_tokens=args.max_output_tokens,
+        ),
+        encoding="utf-8",
+    )
+
     server = await asyncio.start_server(
         partial(
             _proxy_request,
@@ -125,6 +169,7 @@ async def _run(args: argparse.Namespace) -> int:
         "HOME": _required_env("HOME"),
         "TMPDIR": _required_env("TMPDIR"),
         "XDG_CACHE_HOME": _required_env("XDG_CACHE_HOME"),
+        "DSH_CONTEXT_WINDOW": str(args.context_window),
     }
 
     executor = DshWorkerExecutor(
@@ -133,6 +178,7 @@ async def _run(args: argparse.Namespace) -> int:
         model=args.model,
         profile=args.profile,
         request_timeout_seconds=(args.request_timeout_seconds),
+        patches=(_DSH_CONTEXT_PATCH,),
         env=runtime_env,
     )
 
@@ -177,11 +223,30 @@ def main() -> None:
         type=float,
         default=180.0,
     )
+    parser.add_argument(
+        "--context-window",
+        required=True,
+        type=int,
+    )
+    parser.add_argument(
+        "--max-output-tokens",
+        required=True,
+        type=int,
+    )
 
     args = parser.parse_args()
 
     if args.request_timeout_seconds <= 0:
         parser.error("--request-timeout-seconds must be greater than zero")
+
+    if args.context_window <= 0:
+        parser.error("--context-window must be greater than zero")
+
+    if args.max_output_tokens <= 0:
+        parser.error("--max-output-tokens must be greater than zero")
+
+    if args.max_output_tokens >= args.context_window:
+        parser.error("--max-output-tokens must be smaller than --context-window")
 
     raise SystemExit(asyncio.run(_run(args)))
 

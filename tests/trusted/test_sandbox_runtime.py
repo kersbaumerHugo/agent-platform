@@ -27,6 +27,8 @@ def test_builds_trusted_dsh_sandbox_without_secret_in_command(
         gateway_api_key="trusted-secret",
         provider="test-provider",
         model="test-model",
+        context_window=8192,
+        max_output_tokens=1536,
     )
 
     backend = server._handler._backend
@@ -51,5 +53,13 @@ def test_builds_trusted_dsh_sandbox_without_secret_in_command(
 
     profile_index = command.index("--profile")
     assert command[profile_index + 1] == "sdk-minimal"
+
+    context_window_index = command.index("--context-window")
+    assert command[context_window_index + 1] == "8192"
+
+    max_output_tokens_index = command.index("--max-output-tokens")
+    assert command[max_output_tokens_index + 1] == "1536"
+
+    assert backend._config.tmpfs_spec == ("/tmp:rw,exec,nosuid,nodev,size=64m")
 
     assert "trusted-secret" not in command

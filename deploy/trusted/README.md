@@ -141,7 +141,7 @@ M15 was validated with the following immutable images.
 Coding Worker:
 
 ```text
-sha256:27fc10067e66f28a0644a7bcfa490f3e613e46f6b7846b456e773fbb31ffa1ee
+sha256:4c43e9d1df8c908be5f39364e92e0900c82ec7ed4d4cba4a5770b9f3cf4b2b38
 ```
 
 Authoritative verifier:
@@ -159,7 +159,7 @@ non-root Worker
 cap-drop ALL
 no-new-privileges
 bounded CPU / memory / PIDs
-16 MiB ephemeral /tmp
+64 MiB ephemeral /tmp
 no Docker socket
 no publisher socket
 Model Gateway access only through the trusted Unix-socket relay

@@ -19,13 +19,15 @@ ExecStart=/opt/agent-platform/current/venv/bin/python \
   --socket /run/agent-platform-sandbox/coding.sock \
   --workspace-root /var/lib/agent-platform/workspaces \
   --runtime-root /run/agent-platform-sandbox \
-  --image sha256:27fc10067e66f28a0644a7bcfa490f3e613e46f6b7846b456e773fbb31ffa1ee \
+  --image sha256:4c43e9d1df8c908be5f39364e92e0900c82ec7ed4d4cba4a5770b9f3cf4b2b38 \
   --gateway-host 127.0.0.1 \
   --gateway-port 8015 \
   --provider deepseek-official \
   --model qwen3.5-9b-local \
   --profile sdk-minimal \
-  --request-timeout-seconds 180
+  --request-timeout-seconds 180 \
+  --context-window 8192 \
+  --max-output-tokens 1536
 
 RuntimeDirectory=agent-platform-sandbox
 RuntimeDirectoryMode=0770
