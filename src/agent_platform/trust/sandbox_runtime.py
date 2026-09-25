@@ -32,6 +32,8 @@ def build_server(
     model: str,
     profile: str = "sdk-minimal",
     request_timeout_seconds: float = 180.0,
+    context_window: int,
+    max_output_tokens: int,
 ) -> UnixSocketSandboxServer:
     if not provider.strip():
         raise ValueError("provider must not be blank.")
@@ -41,6 +43,15 @@ def build_server(
 
     if request_timeout_seconds <= 0:
         raise ValueError("request_timeout_seconds must be greater than zero.")
+
+    if context_window <= 0:
+        raise ValueError("context_window must be greater than zero.")
+
+    if max_output_tokens <= 0:
+        raise ValueError("max_output_tokens must be greater than zero.")
+
+    if max_output_tokens >= context_window:
+        raise ValueError("max_output_tokens must be smaller than context_window.")
 
     command = (
         "python",
@@ -54,6 +65,10 @@ def build_server(
         profile,
         "--request-timeout-seconds",
         str(request_timeout_seconds),
+        "--context-window",
+        str(context_window),
+        "--max-output-tokens",
+        str(max_output_tokens),
     )
 
     backend = DockerSandboxBackend(
@@ -65,6 +80,7 @@ def build_server(
             gateway_upstream_port=gateway_port,
             gateway_api_key=gateway_api_key,
             hard_timeout_seconds=600.0,
+            tmpfs_spec="/tmp:rw,exec,nosuid,nodev,size=64m",
         )
     )
 
@@ -94,6 +110,8 @@ async def serve(
     model: str,
     profile: str,
     request_timeout_seconds: float,
+    context_window: int,
+    max_output_tokens: int,
 ) -> None:
     server = build_server(
         socket_path=socket_path,
@@ -107,6 +125,8 @@ async def serve(
         model=model,
         profile=profile,
         request_timeout_seconds=request_timeout_seconds,
+        context_window=context_window,
+        max_output_tokens=max_output_tokens,
     )
 
     stop_event = asyncio.Event()
@@ -177,6 +197,16 @@ def main() -> None:
         type=float,
         default=180.0,
     )
+    parser.add_argument(
+        "--context-window",
+        required=True,
+        type=int,
+    )
+    parser.add_argument(
+        "--max-output-tokens",
+        required=True,
+        type=int,
+    )
 
     args = parser.parse_args()
 
@@ -201,6 +231,8 @@ def main() -> None:
             model=args.model,
             profile=args.profile,
             request_timeout_seconds=(args.request_timeout_seconds),
+            context_window=args.context_window,
+            max_output_tokens=args.max_output_tokens,
         )
     )
 
