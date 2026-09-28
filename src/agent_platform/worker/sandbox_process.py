@@ -8,7 +8,10 @@ from functools import partial
 from pathlib import Path
 
 from agent_platform.adapters.workers.dsh import DshWorkerExecutor
-from agent_platform.worker.execution_budget import ModelCallBudget
+from agent_platform.worker.execution_budget import (
+    ModelCallBudget,
+    ModelCallBudgetExceededError,
+)
 from agent_platform.worker.session import WorkerExecutionRequest
 
 _GATEWAY_HOST = "127.0.0.1"
@@ -93,7 +96,17 @@ async def _proxy_request(
 
         body = await reader.readexactly(body_length)
 
-        budget.consume()
+        try:
+            budget.consume()
+        except ModelCallBudgetExceededError:
+            writer.close()
+
+            try:
+                await writer.wait_closed()
+            except (ConnectionError, OSError):
+                pass
+
+            return
 
         upstream_reader, upstream_writer = await asyncio.open_unix_connection(
             socket_path,
