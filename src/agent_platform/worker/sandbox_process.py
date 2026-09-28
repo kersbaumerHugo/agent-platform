@@ -8,7 +8,7 @@ from functools import partial
 from pathlib import Path
 
 from agent_platform.adapters.workers.dsh import DshWorkerExecutor
-from agent_platform.worker.execution_budget import ModelCallBudget
+from agent_platform.worker.execution_budget import ModelCallBudget, ModelCallBudgetExceededError
 from agent_platform.worker.session import WorkerExecutionRequest
 
 _GATEWAY_HOST = "127.0.0.1"
@@ -77,6 +77,7 @@ async def _proxy_request(
     *,
     socket_path: Path,
     budget: ModelCallBudget,
+    budget_exhausted: asyncio.Event,
 ) -> None:
     upstream_writer: asyncio.StreamWriter | None = None
 
@@ -94,6 +95,13 @@ async def _proxy_request(
         body = await reader.readexactly(body_length)
 
         budget.consume()
+
+        # Invariant 1: Catch ModelCallBudgetExceededError in _proxy_request,
+        # set budget_exhausted event, and return without reaching
+        # asyncio.open_unix_connection.
+        if budget.exhausted:
+            budget_exhausted.set()
+            return
 
         upstream_reader, upstream_writer = await asyncio.open_unix_connection(
             socket_path,
@@ -129,15 +137,6 @@ async def _proxy_request(
             pass
 
 
-def _required_env(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-
-    if not value:
-        raise RuntimeError(f"Required environment variable is missing: {name}")
-
-    return value
-
-
 async def _run(args: argparse.Namespace) -> int:
     goal = sys.stdin.read()
 
@@ -161,15 +160,24 @@ async def _run(args: argparse.Namespace) -> int:
 
     budget = ModelCallBudget(max_calls=_MAX_MODEL_CALLS_PER_EXECUTION)
 
+    # Invariant 2: Create one shared asyncio.Event (budget_exhausted) in _run,
+    # start a watcher task after start_server that closes the server upon
+    # budget_exhausted being set.
+    budget_exhausted = asyncio.Event()
+
     server = await asyncio.start_server(
         partial(
             _proxy_request,
             socket_path=gateway_socket,
             budget=budget,
+            budget_exhausted=budget_exhausted,
         ),
         host=_GATEWAY_HOST,
         port=_GATEWAY_PORT,
     )
+
+    # Start a watcher task that closes the server upon budget_exhausted being set
+    watcher_task = asyncio.create_task(_watch_budget_exhausted(server, budget_exhausted))
 
     runtime_env = {
         "DEEPSEEK_BASE_URL": _required_env("DEEPSEEK_BASE_URL"),
@@ -197,9 +205,31 @@ async def _run(args: argparse.Namespace) -> int:
                 workspace=Path.cwd(),
             )
         )
+    except ModelCallBudgetExceededError:
+        # Invariant 3: In executor.execute, if it raises, re-raise
+        # ModelCallBudgetExceededError if budget_exhausted is set, otherwise
+        # preserve original exception.
+        if budget_exhausted.is_set():
+            raise
+    except Exception:
+        # Re-raise other exceptions as-is
+        raise
     finally:
+        # Invariant 4: In _run's finally block, always close the server and
+        # await wait_closed, and cancel/await the watcher task if still pending.
+        watcher_task.cancel()
+        try:
+            await watcher_task
+        except asyncio.CancelledError:
+            pass
+
         server.close()
         await server.wait_closed()
+
+    # Invariant 3: If it returns successfully, raise ModelCallBudgetExceededError
+    # if budget_exhausted is set.
+    if budget_exhausted.is_set():
+        raise ModelCallBudgetExceededError()
 
     sys.stdout.write(result.summary)
 
@@ -207,6 +237,25 @@ async def _run(args: argparse.Namespace) -> int:
         sys.stdout.write("\n")
 
     return 0
+
+
+async def _watch_budget_exhausted(
+    server: asyncio.AbstractServer,
+    budget_exhausted: asyncio.Event,
+) -> None:
+    """Watcher task that closes the server upon budget_exhausted being set."""
+    await budget_exhausted.wait()
+    server.close()
+    await server.wait_closed()
+
+
+def _required_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+
+    if not value:
+        raise RuntimeError(f"Required environment variable is missing: {name}")
+
+    return value
 
 
 def main() -> None:
