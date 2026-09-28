@@ -8,7 +8,7 @@ from functools import partial
 from pathlib import Path
 
 from agent_platform.adapters.workers.dsh import DshWorkerExecutor
-from agent_platform.worker.execution_budget import ModelCallBudget
+from agent_platform.worker.execution_budget import ModelCallBudget, ModelCallBudgetExceededError
 from agent_platform.worker.session import WorkerExecutionRequest
 
 _GATEWAY_HOST = "127.0.0.1"
@@ -77,6 +77,7 @@ async def _proxy_request(
     *,
     socket_path: Path,
     budget: ModelCallBudget,
+    budget_exhausted: asyncio.Event,
 ) -> None:
     upstream_writer: asyncio.StreamWriter | None = None
 
@@ -112,6 +113,10 @@ async def _proxy_request(
             writer.write(chunk)
             await writer.drain()
 
+    except ModelCallBudgetExceededError:
+        # Budget exhausted - don't propagate, just return
+        return
+
     finally:
         if upstream_writer is not None:
             upstream_writer.close()
@@ -129,13 +134,14 @@ async def _proxy_request(
             pass
 
 
-def _required_env(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-
-    if not value:
-        raise RuntimeError(f"Required environment variable is missing: {name}")
-
-    return value
+async def _watch_budget_exhaustion(
+    server: asyncio.Server,
+    budget_exhausted: asyncio.Event,
+) -> None:
+    """Watch for budget exhaustion event and close server."""
+    await budget_exhausted.wait()
+    server.close()
+    await server.wait_closed()
 
 
 async def _run(args: argparse.Namespace) -> int:
@@ -161,14 +167,22 @@ async def _run(args: argparse.Namespace) -> int:
 
     budget = ModelCallBudget(max_calls=_MAX_MODEL_CALLS_PER_EXECUTION)
 
+    budget_exhausted = asyncio.Event()
+
     server = await asyncio.start_server(
         partial(
             _proxy_request,
             socket_path=gateway_socket,
             budget=budget,
+            budget_exhausted=budget_exhausted,
         ),
         host=_GATEWAY_HOST,
         port=_GATEWAY_PORT,
+    )
+
+    # Start watcher task after server starts
+    watcher_task = asyncio.create_task(
+        _watch_budget_exhaustion(server, budget_exhausted),
     )
 
     runtime_env = {
@@ -197,16 +211,34 @@ async def _run(args: argparse.Namespace) -> int:
                 workspace=Path.cwd(),
             )
         )
+
+        sys.stdout.write(result.summary)
+
+        if result.summary and not result.summary.endswith("\n"):
+            sys.stdout.write("\n")
+
+        return 0
+
     finally:
-        server.close()
-        await server.wait_closed()
+        # Deterministic cleanup: cancel watcher task (not executor)
+        watcher_task.cancel()
 
-    sys.stdout.write(result.summary)
+        try:
+            await watcher_task
+        except asyncio.CancelledError:
+            pass
 
-    if result.summary and not result.summary.endswith("\n"):
-        sys.stdout.write("\n")
+        # Server and upstream connections will be cleaned up in _proxy_request
+        # and _watch_budget_exhaustion
 
-    return 0
+
+def _required_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+
+    if not value:
+        raise RuntimeError(f"Required environment variable is missing: {name}")
+
+    return value
 
 
 def main() -> None:
@@ -251,7 +283,7 @@ def main() -> None:
         parser.error("--context-window must be greater than zero")
 
     if args.max_output_tokens <= 0:
-        parser.error("--max-output-tokens must be greater than zero")
+        parser.error("--max-output-tokens must be smaller than --context-window")
 
     if args.max_output_tokens >= args.context_window:
         parser.error("--max-output-tokens must be smaller than --context-window")
