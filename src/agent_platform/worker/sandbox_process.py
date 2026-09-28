@@ -8,7 +8,7 @@ from functools import partial
 from pathlib import Path
 
 from agent_platform.adapters.workers.dsh import DshWorkerExecutor
-from agent_platform.worker.execution_budget import ModelCallBudget
+from agent_platform.worker.execution_budget import ModelCallBudget, ModelCallBudgetExceededError
 from agent_platform.worker.session import WorkerExecutionRequest
 
 _GATEWAY_HOST = "127.0.0.1"
@@ -95,6 +95,9 @@ async def _proxy_request(
 
         budget.consume()
 
+        if budget.exhausted:
+            raise ModelCallBudgetExceededError(remaining_calls=budget.remaining_calls)
+
         upstream_reader, upstream_writer = await asyncio.open_unix_connection(
             socket_path,
         )
@@ -129,6 +132,25 @@ async def _proxy_request(
             pass
 
 
+async def _watch_budget_exhaustion(
+    budget: ModelCallBudget,
+    event: asyncio.Event,
+    task_done_event: asyncio.Event,
+) -> None:
+    """Watch budget exhaustion and signal when exhausted."""
+    while not budget.exhausted:
+        try:
+            await asyncio.wait_for(event.wait(), timeout=0.1)
+        except TimeoutError:
+            pass
+
+        if budget.exhausted:
+            break
+
+    # Signal budget exhaustion
+    event.set()
+
+
 def _required_env(name: str) -> str:
     value = os.environ.get(name, "").strip()
 
@@ -160,6 +182,15 @@ async def _run(args: argparse.Namespace) -> int:
     )
 
     budget = ModelCallBudget(max_calls=_MAX_MODEL_CALLS_PER_EXECUTION)
+
+    # Create event and task_done event for budget exhaustion signaling
+    budget_exhausted_event = asyncio.Event()
+    task_done_event = asyncio.Event()
+
+    # Set up budget exhaustion watcher task
+    budget_exhaustion_task = asyncio.create_task(
+        _watch_budget_exhaustion(budget, budget_exhausted_event, task_done_event)
+    )
 
     server = await asyncio.start_server(
         partial(
@@ -197,9 +228,26 @@ async def _run(args: argparse.Namespace) -> int:
                 workspace=Path.cwd(),
             )
         )
+    except ModelCallBudgetExceededError:
+        # Handle budget exhaustion with deterministic cleanup
+        raise
     finally:
+        # Perform deterministic cleanup
         server.close()
         await server.wait_closed()
+
+        # Cancel budget exhaustion watcher and wait for it to complete
+        budget_exhaustion_task.cancel()
+        try:
+            await budget_exhaustion_task
+        except asyncio.CancelledError:
+            pass
+
+        # Wait for budget exhaustion event to be set (cleanup if needed)
+        try:
+            await asyncio.wait_for(budget_exhausted_event.wait(), timeout=0.1)
+        except TimeoutError:
+            pass
 
     sys.stdout.write(result.summary)
 
