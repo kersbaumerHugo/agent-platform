@@ -8,6 +8,7 @@ from functools import partial
 from pathlib import Path
 
 from agent_platform.adapters.workers.dsh import DshWorkerExecutor
+from agent_platform.worker.execution_budget import ModelCallBudget
 from agent_platform.worker.session import WorkerExecutionRequest
 
 _GATEWAY_HOST = "127.0.0.1"
@@ -20,6 +21,7 @@ _COMPACTION_RETAIN_TOKENS = 1024
 _COMPACTION_MAX_TOKENS = 768
 _COMPACTION_RETRIES = 1
 _MAX_OVERFLOW_RETRIES = 1
+_MAX_MODEL_CALLS_PER_EXECUTION = 32
 
 
 def _context_policy_patch(
@@ -74,6 +76,7 @@ async def _proxy_request(
     writer: asyncio.StreamWriter,
     *,
     socket_path: Path,
+    budget: ModelCallBudget,
 ) -> None:
     upstream_writer: asyncio.StreamWriter | None = None
 
@@ -89,6 +92,8 @@ async def _proxy_request(
             raise ValueError("Gateway request body is too large.")
 
         body = await reader.readexactly(body_length)
+
+        budget.consume()
 
         upstream_reader, upstream_writer = await asyncio.open_unix_connection(
             socket_path,
@@ -154,10 +159,13 @@ async def _run(args: argparse.Namespace) -> int:
         encoding="utf-8",
     )
 
+    budget = ModelCallBudget(max_calls=_MAX_MODEL_CALLS_PER_EXECUTION)
+
     server = await asyncio.start_server(
         partial(
             _proxy_request,
             socket_path=gateway_socket,
+            budget=budget,
         ),
         host=_GATEWAY_HOST,
         port=_GATEWAY_PORT,
