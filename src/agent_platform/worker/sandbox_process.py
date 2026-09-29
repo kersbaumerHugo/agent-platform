@@ -22,6 +22,9 @@ _COMPACTION_RETAIN_TOKENS = 1024
 _COMPACTION_MAX_TOKENS = 768
 _COMPACTION_RETRIES = 1
 _MAX_OVERFLOW_RETRIES = 1
+_TOOL_RESULT_PRUNER_THRESHOLD_CHARS = 8192
+_TOOL_RESULT_PRUNER_HEAD_CHARS = 4096
+_TOOL_RESULT_PRUNER_TAIL_CHARS = 1024
 _MAX_MODEL_CALLS_PER_EXECUTION = 32
 
 
@@ -41,6 +44,13 @@ def _context_policy_patch(
         "- insert:\n"
         "    - id: token-meter\n"
         "      name: '@deepseek-ai/dsh-token-meter'\n"
+        "\n"
+        "    - id: tool-result-pruner\n"
+        "      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'\n"
+        "      config:\n"
+        f"        thresholdChars: {_TOOL_RESULT_PRUNER_THRESHOLD_CHARS}\n"
+        f"        headChars: {_TOOL_RESULT_PRUNER_HEAD_CHARS}\n"
+        f"        tailChars: {_TOOL_RESULT_PRUNER_TAIL_CHARS}\n"
         "\n"
         "    - id: compaction-basic\n"
         "      name: '@deepseek-ai/dsh-compaction-basic'\n"
