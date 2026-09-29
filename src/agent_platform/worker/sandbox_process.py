@@ -216,6 +216,9 @@ async def _run(args: argparse.Namespace) -> int:
         if budget_exhausted.is_set():
             raise ModelCallBudgetExceededError() from None
         raise
+    else:
+        if budget_exhausted.is_set():
+            raise ModelCallBudgetExceededError() from None
     finally:
         server.close()
         await server.wait_closed()
