@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -174,10 +175,31 @@ class SubprocessDockerExecutionRunner:
 
             raise DockerSandboxError(f"Sandbox container failed: {detail}")
 
+        self._forward_lifecycle(stderr)
+
         return stdout.decode(
             "utf-8",
             errors="replace",
         ).strip()
+
+    @staticmethod
+    def _forward_lifecycle(stderr: bytes) -> None:
+        lines = stderr.decode(
+            "utf-8",
+            errors="replace",
+        ).splitlines()
+
+        lifecycle_lines = [
+            line
+            for line in lines
+            if line.startswith("DSH_LIFECYCLE ")
+        ]
+
+        if not lifecycle_lines:
+            return
+
+        sys.stderr.write("\n".join(lifecycle_lines) + "\n")
+        sys.stderr.flush()
 
     async def _finish_process(
         self,

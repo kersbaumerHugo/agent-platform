@@ -8,6 +8,7 @@ from functools import partial
 from pathlib import Path
 
 from agent_platform.adapters.workers.dsh import DshWorkerExecutor
+from agent_platform.worker.dsh_lifecycle import lifecycle_observer
 from agent_platform.worker.execution_budget import ModelCallBudget, ModelCallBudgetExceededError
 from agent_platform.worker.session import WorkerExecutionRequest
 
@@ -203,6 +204,7 @@ async def _run(args: argparse.Namespace) -> int:
         request_timeout_seconds=(args.request_timeout_seconds),
         patches=(_DSH_CONTEXT_PATCH,),
         env=runtime_env,
+        notification_callback=lifecycle_observer(),
     )
 
     try:
