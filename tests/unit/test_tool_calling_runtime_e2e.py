@@ -213,6 +213,62 @@ class InspectThenCodeGateway:
         )
 
 
+class RepeatCodingIfAllowedGateway:
+    def __init__(self) -> None:
+        self.requests: list[ModelRequest] = []
+
+    async def generate(
+        self,
+        request: ModelRequest,
+    ) -> ModelResult:
+        self.requests.append(request)
+
+        if len(self.requests) == 1:
+            return ModelResult(
+                provider="test",
+                model="tool-model",
+                tool_calls=[
+                    ModelToolCall(
+                        id="coding-1",
+                        name="coding_execute",
+                        arguments=json.dumps(
+                            {
+                                "goal": "Make one supervised README change.",
+                                "expected_base_revision": INDEXED_REVISION,
+                            }
+                        ),
+                    )
+                ],
+                finish_reason="tool_calls",
+            )
+
+        if request.tools:
+            return ModelResult(
+                provider="test",
+                model="tool-model",
+                tool_calls=[
+                    ModelToolCall(
+                        id="coding-2",
+                        name="coding_execute",
+                        arguments=json.dumps(
+                            {
+                                "goal": "Make the same supervised README change again.",
+                                "expected_base_revision": INDEXED_REVISION,
+                            }
+                        ),
+                    )
+                ],
+                finish_reason="tool_calls",
+            )
+
+        return ModelResult(
+            provider="test",
+            model="tool-model",
+            output="Coding completed and published once.",
+            finish_reason="stop",
+        )
+
+
 class ExceedingGateway:
     def __init__(self) -> None:
         self.requests: list[ModelRequest] = []
@@ -447,6 +503,75 @@ async def test_runtime_supports_inspect_then_coding_then_final_response() -> Non
     assert inspect_output["indexed_revision"] == INDEXED_REVISION
     assert coding_output["base_revision"] == INDEXED_REVISION
     assert coding_output["publication_outcome"] == "published"
+
+
+@pytest.mark.asyncio
+async def test_published_coding_tool_is_invoked_exactly_once() -> None:
+    coding_capability = RecordingCodingCapability()
+
+    authorization = StaticCapabilityAuthorizationPolicy(
+        grants=[
+            (
+                PRINCIPAL,
+                "coding.execute",
+            ),
+        ]
+    )
+
+    gateway = RepeatCodingIfAllowedGateway()
+
+    runtime = ToolCallingRuntime(
+        gateway=gateway,
+        registry=ToolRegistry(
+            [
+                CodingTool(
+                    coding_capability,
+                    authorization,
+                ),
+            ],
+            NullObserver(),
+        ),
+        agent_id=AGENT_ID,
+        principal_id=PRINCIPAL,
+    )
+
+    agent = RunAgent(
+        runtime=runtime,
+        observer=NullObserver(),
+    )
+
+    result = await agent.execute(
+        RunRequest(
+            agent_id=AGENT_ID,
+            input="Make exactly one supervised coding change.",
+        )
+    )
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert result.output == "Coding completed and published once."
+
+    assert len(coding_capability.requests) == 1
+    assert coding_capability.requests[0].expected_base_revision == INDEXED_REVISION
+
+    assert len(gateway.requests) == 2
+
+    first_request, final_request = gateway.requests
+
+    assert [tool.name for tool in first_request.tools] == ["coding_execute"]
+
+    assert final_request.tools == []
+    assert final_request.max_tokens == 512
+
+    assert [message.role for message in final_request.messages] == [
+        MessageRole.USER,
+        MessageRole.ASSISTANT,
+        MessageRole.TOOL,
+    ]
+
+    coding_output = json.loads(final_request.messages[-1].content or "{}")
+
+    assert coding_output["publication_outcome"] == "published"
+    assert coding_output["pull_request_number"] == 999
 
 
 @pytest.mark.asyncio
