@@ -1,7 +1,15 @@
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
+
+
+class ToolContinuation(StrEnum):
+    """Enumeration of possible tool result continuation states."""
+
+    CONTINUE = "continue"
+    FINALIZE = "finalize"
 
 
 class ToolDefinition(BaseModel):
@@ -38,3 +46,4 @@ class ToolResult(BaseModel):
     run_id: UUID
     tool_name: str = Field(min_length=1)
     output: dict[str, Any]
+    continuation: ToolContinuation = Field(default=ToolContinuation.CONTINUE)
