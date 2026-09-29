@@ -308,7 +308,6 @@ def test_gateway_socket_path_stays_short_for_long_runtime_root(
     assert len(str(socket_path).encode("utf-8")) < 108
 
 
-
 def test_docker_runner_forwards_only_dsh_lifecycle_stderr(
     capsys,
 ) -> None:

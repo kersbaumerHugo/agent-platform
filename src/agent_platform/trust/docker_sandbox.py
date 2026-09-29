@@ -189,11 +189,7 @@ class SubprocessDockerExecutionRunner:
             errors="replace",
         ).splitlines()
 
-        lifecycle_lines = [
-            line
-            for line in lines
-            if line.startswith("DSH_LIFECYCLE ")
-        ]
+        lifecycle_lines = [line for line in lines if line.startswith("DSH_LIFECYCLE ")]
 
         if not lifecycle_lines:
             return

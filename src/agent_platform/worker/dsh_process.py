@@ -23,7 +23,6 @@ def _required_env(name: str) -> str:
     return value
 
 
-
 def _optional_timeout() -> float | None:
     raw = os.environ.get("AGENT_PLATFORM_DSH_REQUEST_TIMEOUT_SECONDS")
 
