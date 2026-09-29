@@ -17,6 +17,7 @@ from agent_platform.domain.models import (
     RuntimeResult,
 )
 from agent_platform.domain.tool import (
+    ToolContinuation,
     ToolRequest,
     ToolResult,
 )
@@ -83,6 +84,8 @@ class ToolCallingRuntime:
             )
         ]
 
+        finalize_requested = False
+
         for _ in range(_MAX_TOOL_ROUNDS):
             result = await self._gateway.generate(
                 ModelRequest(
@@ -120,6 +123,14 @@ class ToolCallingRuntime:
                         tool_call_id=tool_call.id,
                     )
                 )
+
+                # Check for FINALIZE continuation
+                if tool_result.continuation is ToolContinuation.FINALIZE:
+                    finalize_requested = True
+                    break
+
+            if finalize_requested:
+                break
 
         final = await self._gateway.generate(
             ModelRequest(
