@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import os
 import sys
 from functools import partial
 from pathlib import Path
 
 from agent_platform.adapters.workers.dsh import DshWorkerExecutor
-from agent_platform.worker.execution_budget import ModelCallBudget
+from agent_platform.worker.dsh_process import _required_env
+from agent_platform.worker.execution_budget import (
+    ModelCallBudget,
+    ModelCallBudgetExceededError,
+)
 from agent_platform.worker.session import WorkerExecutionRequest
 
 _GATEWAY_HOST = "127.0.0.1"
@@ -77,6 +80,7 @@ async def _proxy_request(
     *,
     socket_path: Path,
     budget: ModelCallBudget,
+    budget_exhausted: asyncio.Event,
 ) -> None:
     upstream_writer: asyncio.StreamWriter | None = None
 
@@ -93,7 +97,11 @@ async def _proxy_request(
 
         body = await reader.readexactly(body_length)
 
-        budget.consume()
+        try:
+            budget.consume()
+        except ModelCallBudgetExceededError:
+            budget_exhausted.set()
+            return
 
         upstream_reader, upstream_writer = await asyncio.open_unix_connection(
             socket_path,
@@ -129,15 +137,6 @@ async def _proxy_request(
             pass
 
 
-def _required_env(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-
-    if not value:
-        raise RuntimeError(f"Required environment variable is missing: {name}")
-
-    return value
-
-
 async def _run(args: argparse.Namespace) -> int:
     goal = sys.stdin.read()
 
@@ -160,12 +159,14 @@ async def _run(args: argparse.Namespace) -> int:
     )
 
     budget = ModelCallBudget(max_calls=_MAX_MODEL_CALLS_PER_EXECUTION)
+    budget_exhausted = asyncio.Event()
 
     server = await asyncio.start_server(
         partial(
             _proxy_request,
             socket_path=gateway_socket,
             budget=budget,
+            budget_exhausted=budget_exhausted,
         ),
         host=_GATEWAY_HOST,
         port=_GATEWAY_PORT,
