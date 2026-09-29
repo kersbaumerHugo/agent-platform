@@ -206,12 +206,17 @@ async def _run(args: argparse.Namespace) -> int:
     )
 
     try:
-        result = await executor.execute(
-            WorkerExecutionRequest(
-                goal=goal,
-                workspace=Path.cwd(),
+        try:
+            result = await executor.execute(
+                WorkerExecutionRequest(
+                    goal=goal,
+                    workspace=Path.cwd(),
+                )
             )
-        )
+        except Exception:
+            if budget_exhausted.is_set():
+                raise ModelCallBudgetExceededError() from None
+            raise
     finally:
         server.close()
         await server.wait_closed()
@@ -222,6 +227,9 @@ async def _run(args: argparse.Namespace) -> int:
             await watcher_task
         except asyncio.CancelledError:
             pass
+
+        if budget_exhausted.is_set():
+            raise ModelCallBudgetExceededError() from None
 
     sys.stdout.write(result.summary)
 
