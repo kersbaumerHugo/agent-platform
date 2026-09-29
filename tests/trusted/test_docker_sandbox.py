@@ -10,6 +10,7 @@ from agent_platform.trust.docker_sandbox import (
     DockerExecution,
     DockerSandboxBackend,
     DockerSandboxConfig,
+    SubprocessDockerExecutionRunner,
 )
 from agent_platform.trust.sandbox_execution import (
     SandboxExecutionRequest,
@@ -305,3 +306,21 @@ def test_gateway_socket_path_stays_short_for_long_runtime_root(
     assert socket_path.parent == runtime_root.resolve()
     assert socket_path.name == ("gw-2d4cf0d559f04cd5.sock")
     assert len(str(socket_path).encode("utf-8")) < 108
+
+
+def test_docker_runner_forwards_only_dsh_lifecycle_stderr(
+    capsys,
+) -> None:
+    SubprocessDockerExecutionRunner._forward_lifecycle(
+        b"ordinary stderr that must stay hidden\n"
+        b'DSH_LIFECYCLE {"method":"session.event","event_type":"tool/call"}\n'
+        b"secret worker output\n"
+    )
+
+    captured = capsys.readouterr()
+
+    assert "DSH_LIFECYCLE" in captured.err
+    assert '"event_type":"tool/call"' in captured.err
+
+    assert "ordinary stderr" not in captured.err
+    assert "secret worker output" not in captured.err

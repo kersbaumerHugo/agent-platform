@@ -70,11 +70,11 @@ def test_lifecycle_observer_emits_only_safe_metadata(
 ) -> None:
     from types import SimpleNamespace
 
-    from agent_platform.worker.dsh_process import (
-        _lifecycle_observer,
+    from agent_platform.worker.dsh_lifecycle import (
+        lifecycle_observer,
     )
 
-    observer = _lifecycle_observer()
+    observer = lifecycle_observer()
 
     observer(
         SimpleNamespace(
