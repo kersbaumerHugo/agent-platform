@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 import agent_platform.worker.sandbox_process as sandbox_process
+from agent_platform.worker.execution_budget import ModelCallBudget, ModelCallBudgetExceededError
 from agent_platform.worker.sandbox_process import (
     _context_policy_patch,
     _watch_budget_exhaustion,
@@ -85,3 +86,21 @@ async def test_watch_budget_exhaustion_with_monkeypatched_sleep(
 
     server.close.assert_called_once()
     server.wait_closed.assert_awaited_once()
+
+
+def test_proxy_budget_boundary_allows_32_and_blocks_33() -> None:
+    budget = ModelCallBudget(max_calls=32)
+
+    # Verify 32 calls are allowed (boundary case)
+    for _ in range(32):
+        budget.consume()
+
+    assert budget.consumed_calls == 32
+    assert budget.remaining_calls == 0
+
+    # The 33rd call should raise ModelCallBudgetExceededError
+    with pytest.raises(ModelCallBudgetExceededError):
+        budget.consume()
+
+    # After the exception, consumed_calls should still be 32
+    assert budget.consumed_calls == 32
