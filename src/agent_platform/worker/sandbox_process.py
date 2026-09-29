@@ -134,6 +134,12 @@ async def _proxy_request(
             pass
 
 
+async def _watch_budget_exhaustion(server: asyncio.Server, budget_exhausted: asyncio.Event) -> None:
+    await budget_exhausted.wait()
+    server.close()
+    await server.wait_closed()
+
+
 def _required_env(name: str) -> str:
     value = os.environ.get(name, "").strip()
 
