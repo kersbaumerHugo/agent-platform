@@ -7,6 +7,7 @@ from agent_platform.contracts.capability import CapabilityContract
 from agent_platform.contracts.tool import ToolContract
 from agent_platform.domain.coding import CodingResult, CodingTask
 from agent_platform.domain.tool import (
+    ToolContinuation,
     ToolDefinition,
     ToolRequest,
     ToolResult,
@@ -71,4 +72,5 @@ class CodingTool(ToolContract):
             run_id=request.run_id,
             tool_name=self.definition.name,
             output=result.model_dump(mode="json"),
+            continuation=ToolContinuation.FINALIZE,
         )
