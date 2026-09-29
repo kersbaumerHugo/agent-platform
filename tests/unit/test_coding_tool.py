@@ -17,7 +17,7 @@ from agent_platform.domain.coding import (
     CodingTask,
     CodingVerificationOutcome,
 )
-from agent_platform.domain.tool import ToolRequest
+from agent_platform.domain.tool import ToolContinuation, ToolRequest
 
 RUN_ID = UUID("13000000-0000-4000-8000-000000000010")
 TASK_ID = UUID("13000000-0000-4000-8000-000000000011")
@@ -127,6 +127,7 @@ async def test_coding_tool_translates_json_to_typed_capability() -> None:
     assert result.run_id == RUN_ID
     assert result.tool_name == "coding_execute"
     assert result.output == expected.model_dump(mode="json")
+    assert result.continuation is ToolContinuation.FINALIZE
 
 
 @pytest.mark.asyncio
