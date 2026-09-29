@@ -184,6 +184,8 @@ async def _run(args: argparse.Namespace) -> int:
         port=_GATEWAY_PORT,
     )
 
+    watcher_task = asyncio.create_task(_watch_budget_exhaustion(server, budget_exhausted))
+
     runtime_env = {
         "DEEPSEEK_BASE_URL": _required_env("DEEPSEEK_BASE_URL"),
         "DEEPSEEK_API_KEY": _required_env("DEEPSEEK_API_KEY"),
@@ -213,6 +215,13 @@ async def _run(args: argparse.Namespace) -> int:
     finally:
         server.close()
         await server.wait_closed()
+        if not watcher_task.done():
+            watcher_task.cancel()
+
+        try:
+            await watcher_task
+        except asyncio.CancelledError:
+            pass
 
     sys.stdout.write(result.summary)
 
