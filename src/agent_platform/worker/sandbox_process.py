@@ -206,6 +206,9 @@ async def _run(args: argparse.Namespace) -> int:
     )
 
     try:
+        if budget_exhausted.is_set():
+            raise RuntimeError("Budget was exhausted before execution started.")
+
         result = await executor.execute(
             WorkerExecutionRequest(
                 goal=goal,
