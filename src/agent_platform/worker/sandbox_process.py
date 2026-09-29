@@ -206,12 +206,17 @@ async def _run(args: argparse.Namespace) -> int:
     )
 
     try:
-        result = await executor.execute(
-            WorkerExecutionRequest(
-                goal=goal,
-                workspace=Path.cwd(),
+        try:
+            result = await executor.execute(
+                WorkerExecutionRequest(
+                    goal=goal,
+                    workspace=Path.cwd(),
+                )
             )
-        )
+        except Exception as e:
+            if budget_exhausted.is_set():
+                raise ModelCallBudgetExceededError from e
+            raise
     finally:
         server.close()
         await server.wait_closed()
