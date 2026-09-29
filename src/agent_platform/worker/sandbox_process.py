@@ -280,7 +280,7 @@ def main() -> None:
         parser.error("--context-window must be greater than zero")
 
     if args.max_output_tokens <= 0:
-        parser.error("--max-output-tokens must be greater than zero")
+        parser.error("--max-output-tokens must be smaller than --context-window")
 
     if args.max_output_tokens >= args.context_window:
         parser.error("--max-output-tokens must be smaller than --context-window")
