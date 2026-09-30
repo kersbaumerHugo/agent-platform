@@ -326,3 +326,70 @@ async def test_phase_limited_initial_attempt_still_runs_one_repair(
     assert "phase limit before completing" in calls[1].goal
     assert hygiene.await_count == 2
     assert verifier.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_worker_releases_runtime_before_post_repair_hygiene(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from agent_platform.worker.self_verification import (
+        WorkerSelfVerificationResult,
+    )
+
+    events: list[str] = []
+
+    class Executor:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def execute(self, request):
+            self.calls += 1
+            events.append(f"execute-{self.calls}")
+
+            raise sandbox_process.WorkerPhaseBudgetReachedError(f"phase-{self.calls}-limit")
+
+    async def hygiene(workspace) -> None:
+        events.append("hygiene")
+
+    async def verify(workspace):
+        events.append("verify")
+
+        return WorkerSelfVerificationResult(
+            command=("python", "-m", "pytest", "-q"),
+            exit_code=0,
+            output="tests passed",
+        )
+
+    async def release_runtime() -> None:
+        events.append("release-runtime")
+
+    monkeypatch.setattr(
+        sandbox_process,
+        "apply_workspace_hygiene",
+        hygiene,
+    )
+    monkeypatch.setattr(
+        sandbox_process,
+        "run_worker_self_verification",
+        verify,
+    )
+
+    result = await sandbox_process._execute_with_bounded_self_repair(
+        executor=Executor(),
+        goal="Implement the requested change.",
+        workspace=tmp_path,
+        release_runtime=release_runtime,
+    )
+
+    assert events == [
+        "execute-1",
+        "hygiene",
+        "verify",
+        "execute-2",
+        "release-runtime",
+        "hygiene",
+        "verify",
+    ]
+
+    assert "reached its model-call limit" in result.summary
