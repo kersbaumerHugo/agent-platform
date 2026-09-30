@@ -32,6 +32,9 @@ jobs:
 
       - name: Compile source
         run: python -m compileall -q src tests scripts
+
+      - name: Validate trusted deployment shell
+        run: bash -n deploy/trusted/agent01-deploy
   lint:
     name: Lint
     runs-on: ubuntu-latest

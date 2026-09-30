@@ -1,0 +1,398 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 022
+
+if [[ "$#" -ne 1 ]]; then
+    echo "usage: agent-platform-deploy <40-char-git-sha>" >&2
+    exit 64
+fi
+
+TARGET_SHA="$1"
+
+if [[ ! "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "invalid git revision: $TARGET_SHA" >&2
+    exit 64
+fi
+
+REPO=/var/lib/agent-platform/trusted-repo
+RELEASES=/opt/agent-platform/releases
+CURRENT=/opt/agent-platform/current
+DROPIN=/etc/systemd/system/agent-platform-m15-sandbox.service.d/20-coding-image.conf
+LOCK=/run/lock/agent-platform-deploy.lock
+
+API_SERVICE=agent-platform-m15-api.service
+SANDBOX_SERVICE=agent-platform-m15-sandbox.service
+VERIFIER_SERVICE=agent-platform-m15-verifier.service
+
+CODING_SOCKET=/run/agent-platform-sandbox/coding.sock
+VERIFIER_SOCKET=/run/agent-platform-verifier/verifier.sock
+
+SHORT_SHA="${TARGET_SHA:0:12}"
+RELEASE="$RELEASES/auto-$SHORT_SHA"
+IMAGE_TAG="agent-platform-coding:auto-$SHORT_SHA"
+
+exec 9>"$LOCK"
+
+if ! flock -n 9; then
+    echo "another agent01 deployment is already running" >&2
+    exit 75
+fi
+
+git_repo() {
+    git \
+        -c safe.directory="$REPO" \
+        -C "$REPO" \
+        "$@"
+}
+
+wait_for_socket() {
+    local socket="$1"
+    local label="$2"
+
+    for _ in $(seq 1 30); do
+        if [[ -S "$socket" ]]; then
+            echo "$label: ready"
+            return 0
+        fi
+
+        sleep 1
+    done
+
+    echo "$label did not become ready" >&2
+    return 1
+}
+
+wait_for_api() {
+    for _ in $(seq 1 30); do
+        if "$RELEASE/venv/bin/python" -c '
+import json
+import urllib.request
+
+with urllib.request.urlopen(
+    "http://127.0.0.1:8015/health",
+    timeout=2,
+) as response:
+    body = json.load(response)
+
+if body != {"status": "ok"}:
+    raise SystemExit(1)
+' >/dev/null 2>&1
+        then
+            echo "api: healthy"
+            return 0
+        fi
+
+        sleep 1
+    done
+
+    echo "api health check failed" >&2
+    return 1
+}
+
+PREVIOUS_RELEASE="$(readlink -f "$CURRENT")"
+
+if [[ ! -d "$PREVIOUS_RELEASE" ]]; then
+    echo "current release target is invalid" >&2
+    exit 1
+fi
+
+if [[ ! -f "$DROPIN" ]]; then
+    echo "sandbox image drop-in does not exist: $DROPIN" >&2
+    exit 1
+fi
+
+DROPIN_BACKUP="$(mktemp)"
+NEW_DROPIN="$(mktemp)"
+TMP_RELEASE=""
+
+cp -a "$DROPIN" "$DROPIN_BACKUP"
+
+ACTIVATED=0
+
+cleanup_files() {
+    rm -f "$DROPIN_BACKUP" "$NEW_DROPIN"
+
+    if [[ -n "$TMP_RELEASE" && -d "$TMP_RELEASE" ]]; then
+        rm -rf "$TMP_RELEASE"
+    fi
+}
+
+rollback() {
+    local rc="$1"
+
+    trap - EXIT ERR
+
+    echo
+    echo "=== DEPLOY FAILED: ROLLBACK ===" >&2
+
+    if [[ "$ACTIVATED" -eq 1 ]]; then
+        install \
+            -o root \
+            -g root \
+            -m 0644 \
+            "$DROPIN_BACKUP" \
+            "$DROPIN"
+
+        next_link="${CURRENT}.rollback.$$"
+
+        rm -f "$next_link"
+        ln -s "$PREVIOUS_RELEASE" "$next_link"
+        mv -Tf "$next_link" "$CURRENT"
+
+        systemctl daemon-reload
+
+        systemctl restart "$SANDBOX_SERVICE" || true
+        systemctl restart "$VERIFIER_SERVICE" || true
+        systemctl restart "$API_SERVICE" || true
+    fi
+
+    cleanup_files
+
+    echo "rollback completed" >&2
+    exit "$rc"
+}
+
+trap 'rollback $?' ERR
+
+echo "=== TARGET ==="
+echo "revision=$TARGET_SHA"
+
+echo
+echo "=== TRUSTED REPOSITORY ==="
+
+if [[ -n "$(git_repo status --porcelain)" ]]; then
+    echo "trusted repository is dirty; refusing deployment" >&2
+    exit 1
+fi
+
+git_repo fetch origin main
+
+REMOTE_SHA="$(git_repo rev-parse origin/main)"
+
+if [[ "$REMOTE_SHA" != "$TARGET_SHA" ]]; then
+    if git_repo merge-base --is-ancestor "$TARGET_SHA" "$REMOTE_SHA"; then
+        echo "revision $TARGET_SHA was superseded by $REMOTE_SHA"
+        echo "skipping stale deployment"
+        cleanup_files
+        trap - ERR
+        exit 0
+    fi
+
+    echo "requested revision is not current origin/main" >&2
+    exit 1
+fi
+
+git_repo checkout main
+git_repo reset --hard "$TARGET_SHA"
+
+echo "trusted_repo_revision=$(git_repo rev-parse HEAD)"
+
+echo
+echo "=== IMMUTABLE RELEASE ==="
+
+if [[ -d "$RELEASE" ]]; then
+    if [[ ! -f "$RELEASE/REVISION" ]] ||
+       [[ "$(cat "$RELEASE/REVISION")" != "$TARGET_SHA" ]]
+    then
+        echo "existing release has unexpected revision" >&2
+        exit 1
+    fi
+
+    echo "reusing release $RELEASE"
+else
+    TMP_RELEASE="${RELEASE}.tmp.$$"
+
+    rm -rf "$TMP_RELEASE"
+    mkdir -p "$TMP_RELEASE"
+
+    python3 -m venv "$TMP_RELEASE/venv"
+
+    (
+        cd "$REPO"
+
+        "$TMP_RELEASE/venv/bin/python" \
+            -m pip install \
+            --no-cache-dir \
+            ".[dsh]"
+    )
+
+    "$TMP_RELEASE/venv/bin/python" -m pip check
+
+    "$TMP_RELEASE/venv/bin/python" -c \
+        'import agent_platform; print(agent_platform.__name__)'
+
+    printf '%s\n' "$TARGET_SHA" > "$TMP_RELEASE/REVISION"
+
+    chown -R root:root "$TMP_RELEASE"
+    chmod -R go-w "$TMP_RELEASE"
+
+    mv "$TMP_RELEASE" "$RELEASE"
+    TMP_RELEASE=""
+fi
+
+echo "release=$RELEASE"
+
+echo
+echo "=== CODING IMAGE ==="
+
+if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+    docker build \
+        --label "io.agent-platform.revision=$TARGET_SHA" \
+        -f "$REPO/deploy/trusted/coding/Dockerfile" \
+        -t "$IMAGE_TAG" \
+        "$REPO"
+fi
+
+IMAGE_ID="$(
+    docker image inspect \
+        "$IMAGE_TAG" \
+        --format '{{.Id}}'
+)"
+
+if [[ ! "$IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "invalid built image id: $IMAGE_ID" >&2
+    exit 1
+fi
+
+echo "coding_image=$IMAGE_ID"
+
+python3 - "$DROPIN" "$NEW_DROPIN" "$IMAGE_ID" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+source = Path(sys.argv[1])
+target = Path(sys.argv[2])
+image = sys.argv[3]
+
+text = source.read_text()
+
+pattern = r"--image sha256:[0-9a-f]{64}"
+
+updated, count = re.subn(
+    pattern,
+    f"--image {image}",
+    text,
+)
+
+if count != 1:
+    raise SystemExit(
+        f"expected exactly one sandbox image reference, found {count}"
+    )
+
+target.write_text(updated)
+PY
+
+echo
+echo "=== ACTIVATE ==="
+
+install \
+    -o root \
+    -g root \
+    -m 0644 \
+    "$NEW_DROPIN" \
+    "$DROPIN"
+
+next_link="${CURRENT}.next.$$"
+
+rm -f "$next_link"
+ln -s "$RELEASE" "$next_link"
+mv -Tf "$next_link" "$CURRENT"
+
+ACTIVATED=1
+
+systemctl daemon-reload
+
+systemctl restart "$SANDBOX_SERVICE"
+wait_for_socket "$CODING_SOCKET" "coding sandbox"
+
+systemctl restart "$VERIFIER_SERVICE"
+wait_for_socket "$VERIFIER_SOCKET" "verifier"
+
+systemctl restart "$API_SERVICE"
+
+systemctl is-active --quiet "$SANDBOX_SERVICE"
+systemctl is-active --quiet "$VERIFIER_SERVICE"
+systemctl is-active --quiet "$API_SERVICE"
+
+wait_for_api
+
+echo
+echo "=== DEPLOYMENT EVIDENCE ==="
+
+echo "current=$(readlink -f "$CURRENT")"
+echo "revision=$(cat "$CURRENT/REVISION")"
+echo "coding_image=$IMAGE_ID"
+
+systemctl show "$SANDBOX_SERVICE" \
+    -p ActiveState \
+    -p SubState \
+    -p NRestarts \
+    --no-pager
+
+systemctl show "$VERIFIER_SERVICE" \
+    -p ActiveState \
+    -p SubState \
+    -p NRestarts \
+    --no-pager
+
+systemctl show "$API_SERVICE" \
+    -p ActiveState \
+    -p SubState \
+    -p NRestarts \
+    --no-pager
+
+echo
+echo "=== RETENTION ==="
+
+docker builder prune -af >/dev/null
+
+mapfile -t AUTO_IMAGES < <(
+    docker image ls \
+        --format '{{.Repository}}:{{.Tag}}' |
+    grep '^agent-platform-coding:auto-' |
+    while read -r tag; do
+        created="$(
+            docker image inspect \
+                "$tag" \
+                --format '{{.Created}}'
+        )"
+
+        printf '%s %s\n' "$created" "$tag"
+    done |
+    sort -r |
+    awk '{print $2}'
+)
+
+if (( ${#AUTO_IMAGES[@]} > 2 )); then
+    for tag in "${AUTO_IMAGES[@]:2}"; do
+        docker image rm "$tag" >/dev/null 2>&1 || true
+    done
+fi
+
+mapfile -t AUTO_RELEASES < <(
+    find "$RELEASES" \
+        -mindepth 1 \
+        -maxdepth 1 \
+        -type d \
+        -name 'auto-*' \
+        -printf '%T@ %p\n' |
+    sort -nr |
+    awk '{print $2}'
+)
+
+if (( ${#AUTO_RELEASES[@]} > 3 )); then
+    ACTIVE_RELEASE="$(readlink -f "$CURRENT")"
+
+    for old_release in "${AUTO_RELEASES[@]:3}"; do
+        if [[ "$old_release" != "$ACTIVE_RELEASE" ]]; then
+            rm -rf "$old_release"
+        fi
+    done
+fi
+
+cleanup_files
+trap - ERR
+
+echo
+echo "DEPLOYMENT_OK revision=$TARGET_SHA"
