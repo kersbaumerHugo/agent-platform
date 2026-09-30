@@ -1,0 +1,43 @@
+name: Deploy agent01
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions: {}
+
+concurrency:
+  group: deploy-agent01
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy agent01
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agent01
+      - deploy
+
+    timeout-minutes: 20
+
+    steps:
+      - name: Deploy exact accepted revision
+        env:
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          test -n "$TARGET_SHA"
+
+          sudo /usr/local/sbin/agent-platform-deploy \
+            "$TARGET_SHA"
