@@ -11,6 +11,7 @@ from agent_platform.adapters.workers.dsh import DshWorkerExecutor
 from agent_platform.worker.dsh_lifecycle import lifecycle_observer
 from agent_platform.worker.execution_budget import ModelCallBudget, ModelCallBudgetExceededError
 from agent_platform.worker.session import WorkerExecutionRequest
+from agent_platform.worker.workspace_hygiene import apply_workspace_hygiene
 
 _GATEWAY_HOST = "127.0.0.1"
 _GATEWAY_PORT = 18080
@@ -231,6 +232,8 @@ async def _run(args: argparse.Namespace) -> int:
     else:
         if budget_exhausted.is_set():
             raise ModelCallBudgetExceededError() from None
+
+        await apply_workspace_hygiene(Path.cwd())
     finally:
         server.close()
         await server.wait_closed()
