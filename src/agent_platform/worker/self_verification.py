@@ -87,15 +87,26 @@ def build_self_repair_goal(
     *,
     original_goal: str,
     verification: WorkerSelfVerificationResult,
+    phase_limited: bool = False,
 ) -> str:
+    if phase_limited:
+        trigger = (
+            "The previous implementation attempt reached its model-call "
+            "phase limit before completing."
+        )
+    else:
+        trigger = (
+            "Deterministic Worker self-verification failed after your previous implementation."
+        )
+
     return (
-        f"{original_goal.strip()}\n\n"
-        "Deterministic Worker self-verification failed after your previous "
-        "implementation. This is the single bounded self-repair attempt for "
-        "this sandbox execution. Repair the existing workspace rather than "
-        "starting over.\n\n"
-        "Self-verification evidence:\n"
-        f"{verification.repair_feedback()}\n\n"
+        f"{original_goal.strip()}\\n\\n"
+        f"{trigger} "
+        "This is the single bounded self-repair attempt for this sandbox "
+        "execution. Repair the existing workspace rather than starting "
+        "over.\\n\\n"
+        "Self-verification evidence:\\n"
+        f"{verification.repair_feedback()}\\n\\n"
         "Preserve the requested task scope. Do not weaken or delete tests "
         "merely to obtain a passing result. Run relevant verification after "
         "repairing. Do not commit, push, or create pull requests."

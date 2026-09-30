@@ -236,3 +236,81 @@ class TestModelCallBudgetConsumeTypeError:
         budget = ModelCallBudget(5)
         with pytest.raises(TypeError):
             budget.consume(2)
+
+
+def test_phase_budget_reserves_calls_for_repair() -> None:
+    from agent_platform.worker.execution_budget import (
+        ModelCallPhaseBudgetExceededError,
+        PhaseAwareModelCallBudget,
+    )
+
+    budget = PhaseAwareModelCallBudget(32)
+
+    budget.begin_phase(24)
+
+    for _ in range(24):
+        budget.consume()
+
+    with pytest.raises(ModelCallPhaseBudgetExceededError):
+        budget.consume()
+
+    assert budget.consumed_calls == 24
+    assert budget.remaining_calls == 8
+
+    budget.begin_phase(8)
+
+    for _ in range(8):
+        budget.consume()
+
+    assert budget.consumed_calls == 32
+    assert budget.remaining_calls == 0
+
+
+def test_unused_initial_budget_is_available_to_repair() -> None:
+    from agent_platform.worker.execution_budget import (
+        PhaseAwareModelCallBudget,
+    )
+
+    budget = PhaseAwareModelCallBudget(32)
+
+    budget.begin_phase(24)
+
+    for _ in range(13):
+        budget.consume()
+
+    assert budget.remaining_calls == 19
+
+    budget.begin_phase(budget.remaining_calls)
+
+    assert budget.phase_max_calls == 19
+
+    for _ in range(19):
+        budget.consume()
+
+    assert budget.consumed_calls == 32
+    assert budget.remaining_calls == 0
+
+
+def test_total_budget_remains_hard_limit_across_phases() -> None:
+    from agent_platform.worker.execution_budget import (
+        ModelCallBudgetExceededError,
+        PhaseAwareModelCallBudget,
+    )
+
+    budget = PhaseAwareModelCallBudget(32)
+
+    budget.begin_phase(24)
+
+    for _ in range(24):
+        budget.consume()
+
+    budget.begin_phase(8)
+
+    for _ in range(8):
+        budget.consume()
+
+    with pytest.raises(ModelCallBudgetExceededError):
+        budget.consume()
+
+    assert budget.consumed_calls == 32
+    assert budget.remaining_calls == 0
