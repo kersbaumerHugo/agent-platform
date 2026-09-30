@@ -63,6 +63,7 @@ class DSHRuntime(RuntimeContract):
         self._env = dict(env or {})
         self._client_factory = client_factory
         self._notification_callback = notification_callback
+        self._client: _DSHClient | None = None
 
     @property
     def name(self) -> str:
@@ -81,22 +82,23 @@ class DSHRuntime(RuntimeContract):
         self,
         request: RuntimeRequest,
     ) -> RuntimeResult:
-        client = self._build_client(request)
+        client = self._client
 
-        try:
-            if self._notification_callback is None:
-                result = client.run(
-                    request.input,
-                    session_id=str(request.run_id),
-                )
-            else:
-                result = client.run(
-                    request.input,
-                    session_id=str(request.run_id),
-                    on_notification=(self._notification_callback),
-                )
-        finally:
-            client.close()
+        if client is None:
+            client = self._build_client(request)
+            self._client = client
+
+        if self._notification_callback is None:
+            result = client.run(
+                request.input,
+                session_id=str(request.run_id),
+            )
+        else:
+            result = client.run(
+                request.input,
+                session_id=str(request.run_id),
+                on_notification=self._notification_callback,
+            )
 
         if not result.final_response.strip():
             raise RuntimeError("DSH completed without a final response.")
@@ -104,6 +106,15 @@ class DSHRuntime(RuntimeContract):
         return RuntimeResult(
             output=result.final_response,
         )
+
+    def close(self) -> None:
+        client = self._client
+
+        if client is None:
+            return
+
+        self._client = None
+        client.close()
 
     def _build_client(
         self,
