@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import os
 import sys
+from collections.abc import Awaitable, Callable
 from functools import partial
 from pathlib import Path
 
@@ -267,6 +268,7 @@ async def _execute_with_bounded_self_repair(
     executor: WorkerExecutor,
     goal: str,
     workspace: Path,
+    release_runtime: Callable[[], Awaitable[None]] | None = None,
 ) -> WorkerExecutionResult:
     initial_phase_limited = False
 
@@ -292,18 +294,22 @@ async def _execute_with_bounded_self_repair(
         return result
 
     try:
-        repaired = await executor.execute(
-            WorkerExecutionRequest(
-                goal=build_self_repair_goal(
-                    original_goal=goal,
-                    verification=verification,
-                    phase_limited=initial_phase_limited,
-                ),
-                workspace=workspace,
+        try:
+            repaired = await executor.execute(
+                WorkerExecutionRequest(
+                    goal=build_self_repair_goal(
+                        original_goal=goal,
+                        verification=verification,
+                        phase_limited=initial_phase_limited,
+                    ),
+                    workspace=workspace,
+                )
             )
-        )
-    except WorkerPhaseBudgetReachedError:
-        repaired = None
+        except WorkerPhaseBudgetReachedError:
+            repaired = None
+    finally:
+        if release_runtime is not None:
+            await release_runtime()
 
     await apply_workspace_hygiene(workspace)
 
@@ -400,6 +406,7 @@ async def _run(args: argparse.Namespace) -> int:
             executor=phase_executor,
             goal=goal,
             workspace=Path.cwd(),
+            release_runtime=executor.close,
         )
     finally:
         await executor.close()
