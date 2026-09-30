@@ -193,3 +193,36 @@ async def test_dsh_worker_rejects_workspace_change_while_runtime_open(
         )
 
     await executor.close()
+
+
+def test_dsh_worker_prompt_requires_plan_before_editing() -> None:
+    prompt = DshWorkerExecutor._build_prompt(
+        "Modify exactly one test file and add exactly two assertions."
+    )
+
+    inspect = prompt.index("1. INSPECT BEFORE EDITING")
+    plan = prompt.index("2. PLAN BEFORE EDITING")
+    implement = prompt.index("3. IMPLEMENT FROM EVIDENCE")
+    verify = prompt.index("4. VERIFY AGAINST THE PLAN")
+
+    assert inspect < plan < implement < verify
+
+    assert "before modifying anything" in prompt
+    assert "target files" in prompt
+    assert "existing contracts/types to reuse" in prompt
+    assert "explicit acceptance criteria" in prompt
+    assert "verification commands" in prompt
+
+    assert "Planning is not completion" in prompt
+    assert "do not stop after producing the plan" in prompt
+
+    assert "Do not invent APIs, fields, attributes, enum values, or behavior" in prompt
+
+    assert (
+        "Treat exact counts, sequences, file scopes, types, enum values, "
+        "and assertions specified by the goal as hard contracts." in prompt
+    )
+
+    assert "against every acceptance criterion" in prompt
+
+    assert "Modify exactly one test file and add exactly two assertions." in prompt
