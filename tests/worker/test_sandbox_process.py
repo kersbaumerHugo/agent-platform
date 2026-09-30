@@ -92,3 +92,174 @@ async def test_watch_budget_exhaustion_with_monkeypatched_sleep(
 
     server.close.assert_called_once()
     server.wait_closed.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_worker_self_repair_runs_once_after_failed_self_verification(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from agent_platform.worker.self_verification import (
+        WorkerSelfVerificationResult,
+    )
+
+    calls = []
+
+    class Executor:
+        async def execute(self, request):
+            calls.append(request)
+            return sandbox_process.WorkerExecutionResult(
+                summary=f"attempt-{len(calls)}",
+            )
+
+    hygiene = AsyncMock()
+
+    verification_results = [
+        WorkerSelfVerificationResult(
+            command=("python", "-m", "pytest", "-q"),
+            exit_code=1,
+            output="3 failed",
+        ),
+        WorkerSelfVerificationResult(
+            command=("python", "-m", "pytest", "-q"),
+            exit_code=0,
+            output="500 passed",
+        ),
+    ]
+
+    verifier = AsyncMock(
+        side_effect=verification_results,
+    )
+
+    monkeypatch.setattr(
+        sandbox_process,
+        "apply_workspace_hygiene",
+        hygiene,
+    )
+    monkeypatch.setattr(
+        sandbox_process,
+        "run_worker_self_verification",
+        verifier,
+    )
+
+    result = await sandbox_process._execute_with_bounded_self_repair(
+        executor=Executor(),
+        goal="Implement the requested change.",
+        workspace=tmp_path,
+    )
+
+    assert result.summary == "attempt-2"
+    assert len(calls) == 2
+    assert "single bounded self-repair attempt" in calls[1].goal
+    assert "3 failed" in calls[1].goal
+    assert hygiene.await_count == 2
+    assert verifier.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_worker_does_not_repair_when_self_verification_passes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from agent_platform.worker.self_verification import (
+        WorkerSelfVerificationResult,
+    )
+
+    calls = []
+
+    class Executor:
+        async def execute(self, request):
+            calls.append(request)
+            return sandbox_process.WorkerExecutionResult(
+                summary="done",
+            )
+
+    hygiene = AsyncMock()
+    verifier = AsyncMock(
+        return_value=WorkerSelfVerificationResult(
+            command=("python", "-m", "pytest", "-q"),
+            exit_code=0,
+            output="500 passed",
+        )
+    )
+
+    monkeypatch.setattr(
+        sandbox_process,
+        "apply_workspace_hygiene",
+        hygiene,
+    )
+    monkeypatch.setattr(
+        sandbox_process,
+        "run_worker_self_verification",
+        verifier,
+    )
+
+    result = await sandbox_process._execute_with_bounded_self_repair(
+        executor=Executor(),
+        goal="Implement the requested change.",
+        workspace=tmp_path,
+    )
+
+    assert result.summary == "done"
+    assert len(calls) == 1
+    hygiene.assert_awaited_once()
+    verifier.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_worker_self_repair_stops_after_exactly_one_failed_repair(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from agent_platform.worker.self_verification import (
+        WorkerSelfVerificationResult,
+    )
+
+    calls = []
+
+    class Executor:
+        async def execute(self, request):
+            calls.append(request)
+            return sandbox_process.WorkerExecutionResult(
+                summary=f"attempt-{len(calls)}",
+            )
+
+    hygiene = AsyncMock()
+
+    verifier = AsyncMock(
+        side_effect=[
+            WorkerSelfVerificationResult(
+                command=("python", "-m", "pytest", "-q"),
+                exit_code=1,
+                output="3 failed",
+            ),
+            WorkerSelfVerificationResult(
+                command=("python", "-m", "pytest", "-q"),
+                exit_code=1,
+                output="1 failed",
+            ),
+        ],
+    )
+
+    monkeypatch.setattr(
+        sandbox_process,
+        "apply_workspace_hygiene",
+        hygiene,
+    )
+    monkeypatch.setattr(
+        sandbox_process,
+        "run_worker_self_verification",
+        verifier,
+    )
+
+    result = await sandbox_process._execute_with_bounded_self_repair(
+        executor=Executor(),
+        goal="Implement the requested change.",
+        workspace=tmp_path,
+    )
+
+    assert len(calls) == 2
+    assert hygiene.await_count == 2
+    assert verifier.await_count == 2
+    assert "remains failing" in result.summary
+    assert "authoritative trusted verification" in result.summary
