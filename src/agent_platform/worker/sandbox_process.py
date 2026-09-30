@@ -10,7 +10,15 @@ from pathlib import Path
 from agent_platform.adapters.workers.dsh import DshWorkerExecutor
 from agent_platform.worker.dsh_lifecycle import lifecycle_observer
 from agent_platform.worker.execution_budget import ModelCallBudget, ModelCallBudgetExceededError
-from agent_platform.worker.session import WorkerExecutionRequest
+from agent_platform.worker.self_verification import (
+    build_self_repair_goal,
+    run_worker_self_verification,
+)
+from agent_platform.worker.session import (
+    WorkerExecutionRequest,
+    WorkerExecutionResult,
+    WorkerExecutor,
+)
 from agent_platform.worker.workspace_hygiene import apply_workspace_hygiene
 
 _GATEWAY_HOST = "127.0.0.1"
@@ -152,6 +160,59 @@ async def _watch_budget_exhaustion(server: asyncio.Server, budget_exhausted: asy
     await server.wait_closed()
 
 
+async def _execute_with_bounded_self_repair(
+    *,
+    executor: WorkerExecutor,
+    goal: str,
+    workspace: Path,
+) -> WorkerExecutionResult:
+    result = await executor.execute(
+        WorkerExecutionRequest(
+            goal=goal,
+            workspace=workspace,
+        )
+    )
+
+    await apply_workspace_hygiene(workspace)
+
+    verification = await run_worker_self_verification(
+        workspace,
+    )
+
+    if verification.passed:
+        return result
+
+    repaired = await executor.execute(
+        WorkerExecutionRequest(
+            goal=build_self_repair_goal(
+                original_goal=goal,
+                verification=verification,
+            ),
+            workspace=workspace,
+        )
+    )
+
+    await apply_workspace_hygiene(workspace)
+
+    final_verification = await run_worker_self_verification(
+        workspace,
+    )
+
+    if final_verification.passed:
+        return repaired
+
+    summary = repaired.summary.rstrip()
+
+    return WorkerExecutionResult(
+        summary=(
+            f"{summary}\n\n"
+            "Deterministic Worker self-verification remains failing after "
+            "the single bounded self-repair attempt. The candidate must "
+            "still pass authoritative trusted verification."
+        )
+    )
+
+
 def _required_env(name: str) -> str:
     value = os.environ.get(name, "").strip()
 
@@ -219,11 +280,10 @@ async def _run(args: argparse.Namespace) -> int:
     )
 
     try:
-        result = await executor.execute(
-            WorkerExecutionRequest(
-                goal=goal,
-                workspace=Path.cwd(),
-            )
+        result = await _execute_with_bounded_self_repair(
+            executor=executor,
+            goal=goal,
+            workspace=Path.cwd(),
         )
     except Exception:
         if budget_exhausted.is_set():
@@ -233,7 +293,6 @@ async def _run(args: argparse.Namespace) -> int:
         if budget_exhausted.is_set():
             raise ModelCallBudgetExceededError() from None
 
-        await apply_workspace_hygiene(Path.cwd())
     finally:
         server.close()
         await server.wait_closed()
