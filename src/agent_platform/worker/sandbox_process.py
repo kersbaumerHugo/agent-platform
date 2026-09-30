@@ -9,7 +9,10 @@ from pathlib import Path
 
 from agent_platform.adapters.workers.dsh import DshWorkerExecutor
 from agent_platform.worker.dsh_lifecycle import lifecycle_observer
-from agent_platform.worker.execution_budget import ModelCallBudget, ModelCallBudgetExceededError
+from agent_platform.worker.execution_budget import (
+    ModelCallBudgetExceededError,
+    PhaseAwareModelCallBudget,
+)
 from agent_platform.worker.self_verification import (
     build_self_repair_goal,
     run_worker_self_verification,
@@ -35,6 +38,7 @@ _TOOL_RESULT_PRUNER_THRESHOLD_CHARS = 8192
 _TOOL_RESULT_PRUNER_HEAD_CHARS = 4096
 _TOOL_RESULT_PRUNER_TAIL_CHARS = 1024
 _MAX_MODEL_CALLS_PER_EXECUTION = 32
+_INITIAL_MODEL_CALLS_MAX = 24
 
 
 def _context_policy_patch(
@@ -96,7 +100,7 @@ async def _proxy_request(
     writer: asyncio.StreamWriter,
     *,
     socket_path: Path,
-    budget: ModelCallBudget,
+    budget: PhaseAwareModelCallBudget,
     budget_exhausted: asyncio.Event,
 ) -> None:
     upstream_writer: asyncio.StreamWriter | None = None
@@ -160,18 +164,122 @@ async def _watch_budget_exhaustion(server: asyncio.Server, budget_exhausted: asy
     await server.wait_closed()
 
 
+class WorkerPhaseBudgetReachedError(RuntimeError):
+    """Raised when one Worker model-call phase reaches its allowance."""
+
+
+class _PhaseBoundWorkerExecutor:
+    def __init__(
+        self,
+        *,
+        executor: WorkerExecutor,
+        gateway_socket: Path,
+        total_max_calls: int,
+        initial_max_calls: int,
+    ) -> None:
+        self._executor = executor
+        self._gateway_socket = gateway_socket
+        self._budget = PhaseAwareModelCallBudget(
+            max_calls=total_max_calls,
+        )
+        self._initial_max_calls = initial_max_calls
+        self._attempts = 0
+
+    @property
+    def consumed_calls(self) -> int:
+        return self._budget.consumed_calls
+
+    @property
+    def remaining_calls(self) -> int:
+        return self._budget.remaining_calls
+
+    async def execute(
+        self,
+        request: WorkerExecutionRequest,
+    ) -> WorkerExecutionResult:
+        if self._budget.remaining_calls <= 0:
+            raise WorkerPhaseBudgetReachedError("No model calls remain for another Worker phase.")
+
+        if self._attempts == 0:
+            requested_limit = self._initial_max_calls
+        else:
+            requested_limit = self._budget.remaining_calls
+
+        phase_limit = min(
+            requested_limit,
+            self._budget.remaining_calls,
+        )
+
+        self._attempts += 1
+        self._budget.begin_phase(phase_limit)
+
+        limit_reached = asyncio.Event()
+
+        server = await asyncio.start_server(
+            partial(
+                _proxy_request,
+                socket_path=self._gateway_socket,
+                budget=self._budget,
+                budget_exhausted=limit_reached,
+            ),
+            host=_GATEWAY_HOST,
+            port=_GATEWAY_PORT,
+        )
+
+        watcher_task = asyncio.create_task(
+            _watch_budget_exhaustion(
+                server,
+                limit_reached,
+            )
+        )
+
+        try:
+            try:
+                result = await self._executor.execute(request)
+            except Exception:
+                if limit_reached.is_set():
+                    raise WorkerPhaseBudgetReachedError(
+                        "Worker model-call phase limit reached."
+                    ) from None
+
+                raise
+
+            if limit_reached.is_set():
+                raise WorkerPhaseBudgetReachedError("Worker model-call phase limit reached.")
+
+            return result
+
+        finally:
+            server.close()
+            await server.wait_closed()
+
+            if not watcher_task.done():
+                watcher_task.cancel()
+
+            try:
+                await watcher_task
+            except asyncio.CancelledError:
+                pass
+
+
 async def _execute_with_bounded_self_repair(
     *,
     executor: WorkerExecutor,
     goal: str,
     workspace: Path,
 ) -> WorkerExecutionResult:
-    result = await executor.execute(
-        WorkerExecutionRequest(
-            goal=goal,
-            workspace=workspace,
+    initial_phase_limited = False
+
+    try:
+        result = await executor.execute(
+            WorkerExecutionRequest(
+                goal=goal,
+                workspace=workspace,
+            )
         )
-    )
+    except WorkerPhaseBudgetReachedError:
+        initial_phase_limited = True
+        result = None
 
     await apply_workspace_hygiene(workspace)
 
@@ -179,18 +287,23 @@ async def _execute_with_bounded_self_repair(
         workspace,
     )
 
-    if verification.passed:
+    if verification.passed and not initial_phase_limited:
+        assert result is not None
         return result
 
-    repaired = await executor.execute(
-        WorkerExecutionRequest(
-            goal=build_self_repair_goal(
-                original_goal=goal,
-                verification=verification,
-            ),
-            workspace=workspace,
+    try:
+        repaired = await executor.execute(
+            WorkerExecutionRequest(
+                goal=build_self_repair_goal(
+                    original_goal=goal,
+                    verification=verification,
+                    phase_limited=initial_phase_limited,
+                ),
+                workspace=workspace,
+            )
         )
-    )
+    except WorkerPhaseBudgetReachedError:
+        repaired = None
 
     await apply_workspace_hygiene(workspace)
 
@@ -199,13 +312,25 @@ async def _execute_with_bounded_self_repair(
     )
 
     if final_verification.passed:
-        return repaired
+        if repaired is not None:
+            return repaired
 
-    summary = repaired.summary.rstrip()
+        return WorkerExecutionResult(
+            summary=(
+                "Worker repair phase reached its model-call limit, but "
+                "deterministic self-verification passes. The candidate "
+                "still requires authoritative trusted verification."
+            )
+        )
+
+    if repaired is None:
+        summary = "Worker repair phase reached its model-call limit."
+    else:
+        summary = repaired.summary.rstrip()
 
     return WorkerExecutionResult(
         summary=(
-            f"{summary}\n\n"
+            f"{summary}\\n\\n"
             "Deterministic Worker self-verification remains failing after "
             "the single bounded self-repair attempt. The candidate must "
             "still pass authoritative trusted verification."
@@ -243,22 +368,6 @@ async def _run(args: argparse.Namespace) -> int:
         encoding="utf-8",
     )
 
-    budget = ModelCallBudget(max_calls=_MAX_MODEL_CALLS_PER_EXECUTION)
-    budget_exhausted = asyncio.Event()
-
-    server = await asyncio.start_server(
-        partial(
-            _proxy_request,
-            socket_path=gateway_socket,
-            budget=budget,
-            budget_exhausted=budget_exhausted,
-        ),
-        host=_GATEWAY_HOST,
-        port=_GATEWAY_PORT,
-    )
-
-    watcher_task = asyncio.create_task(_watch_budget_exhaustion(server, budget_exhausted))
-
     runtime_env = {
         "DEEPSEEK_BASE_URL": _required_env("DEEPSEEK_BASE_URL"),
         "DEEPSEEK_API_KEY": _required_env("DEEPSEEK_API_KEY"),
@@ -279,30 +388,18 @@ async def _run(args: argparse.Namespace) -> int:
         notification_callback=lifecycle_observer(),
     )
 
-    try:
-        result = await _execute_with_bounded_self_repair(
-            executor=executor,
-            goal=goal,
-            workspace=Path.cwd(),
-        )
-    except Exception:
-        if budget_exhausted.is_set():
-            raise ModelCallBudgetExceededError() from None
-        raise
-    else:
-        if budget_exhausted.is_set():
-            raise ModelCallBudgetExceededError() from None
+    phase_executor = _PhaseBoundWorkerExecutor(
+        executor=executor,
+        gateway_socket=gateway_socket,
+        total_max_calls=_MAX_MODEL_CALLS_PER_EXECUTION,
+        initial_max_calls=_INITIAL_MODEL_CALLS_MAX,
+    )
 
-    finally:
-        server.close()
-        await server.wait_closed()
-        if not watcher_task.done():
-            watcher_task.cancel()
-
-        try:
-            await watcher_task
-        except asyncio.CancelledError:
-            pass
+    result = await _execute_with_bounded_self_repair(
+        executor=phase_executor,
+        goal=goal,
+        workspace=Path.cwd(),
+    )
 
     sys.stdout.write(result.summary)
 

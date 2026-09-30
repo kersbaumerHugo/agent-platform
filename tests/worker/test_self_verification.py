@@ -60,3 +60,21 @@ def test_repair_goal_contains_real_verification_evidence() -> None:
     assert "exit_code: 1" in goal
     assert "3 failed in 0.36s" in goal
     assert "Do not weaken or delete tests" in goal
+
+
+def test_phase_limited_repair_goal_explains_incomplete_attempt() -> None:
+    verification = WorkerSelfVerificationResult(
+        command=("python", "-m", "pytest", "-q"),
+        exit_code=0,
+        output="693 passed",
+    )
+
+    goal = build_self_repair_goal(
+        original_goal="Implement the focused change.",
+        verification=verification,
+        phase_limited=True,
+    )
+
+    assert "phase limit before completing" in goal
+    assert "single bounded self-repair attempt" in goal
+    assert "693 passed" in goal

@@ -263,3 +263,66 @@ async def test_worker_self_repair_stops_after_exactly_one_failed_repair(
     assert verifier.await_count == 2
     assert "remains failing" in result.summary
     assert "authoritative trusted verification" in result.summary
+
+
+@pytest.mark.asyncio
+async def test_phase_limited_initial_attempt_still_runs_one_repair(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from agent_platform.worker.self_verification import (
+        WorkerSelfVerificationResult,
+    )
+
+    calls = []
+
+    class Executor:
+        async def execute(self, request):
+            calls.append(request)
+
+            if len(calls) == 1:
+                raise sandbox_process.WorkerPhaseBudgetReachedError("initial phase limit")
+
+            return sandbox_process.WorkerExecutionResult(
+                summary="repaired",
+            )
+
+    hygiene = AsyncMock()
+
+    verifier = AsyncMock(
+        side_effect=[
+            WorkerSelfVerificationResult(
+                command=("python", "-m", "pytest", "-q"),
+                exit_code=0,
+                output="693 passed",
+            ),
+            WorkerSelfVerificationResult(
+                command=("python", "-m", "pytest", "-q"),
+                exit_code=0,
+                output="693 passed",
+            ),
+        ]
+    )
+
+    monkeypatch.setattr(
+        sandbox_process,
+        "apply_workspace_hygiene",
+        hygiene,
+    )
+    monkeypatch.setattr(
+        sandbox_process,
+        "run_worker_self_verification",
+        verifier,
+    )
+
+    result = await sandbox_process._execute_with_bounded_self_repair(
+        executor=Executor(),
+        goal="Implement the requested change.",
+        workspace=tmp_path,
+    )
+
+    assert result.summary == "repaired"
+    assert len(calls) == 2
+    assert "phase limit before completing" in calls[1].goal
+    assert hygiene.await_count == 2
+    assert verifier.await_count == 2
