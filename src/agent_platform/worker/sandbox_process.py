@@ -395,11 +395,14 @@ async def _run(args: argparse.Namespace) -> int:
         initial_max_calls=_INITIAL_MODEL_CALLS_MAX,
     )
 
-    result = await _execute_with_bounded_self_repair(
-        executor=phase_executor,
-        goal=goal,
-        workspace=Path.cwd(),
-    )
+    try:
+        result = await _execute_with_bounded_self_repair(
+            executor=phase_executor,
+            goal=goal,
+            workspace=Path.cwd(),
+        )
+    finally:
+        await executor.close()
 
     sys.stdout.write(result.summary)
 

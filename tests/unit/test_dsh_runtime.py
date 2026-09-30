@@ -74,6 +74,10 @@ async def test_dsh_runtime_maps_runtime_contract() -> None:
 
     assert client.prompt == "hello runtime"
     assert client.session_id == str(run_id)
+    assert client.closed is False
+
+    runtime.close()
+
     assert client.closed is True
 
 
@@ -108,3 +112,70 @@ async def test_dsh_runtime_forwards_notifications() -> None:
     assert notification.payload == {
         "status": "busy",
     }
+
+
+@pytest.mark.asyncio
+async def test_dsh_runtime_reuses_client_across_runs() -> None:
+    client = FakeDSHClient()
+    factory_calls = 0
+
+    def client_factory() -> FakeDSHClient:
+        nonlocal factory_calls
+        factory_calls += 1
+        return client
+
+    runtime = DSHRuntime(
+        dsh_home=Path(".runtime/dsh"),
+        cwd=Path("."),
+        provider="test-provider",
+        model="test-model",
+        client_factory=client_factory,
+    )
+
+    first_run_id = uuid4()
+    second_run_id = uuid4()
+
+    first = await runtime.execute(
+        RuntimeRequest(
+            run_id=first_run_id,
+            agent_id="demo",
+            input="initial implementation",
+        )
+    )
+
+    second = await runtime.execute(
+        RuntimeRequest(
+            run_id=second_run_id,
+            agent_id="demo",
+            input="repair implementation",
+        )
+    )
+
+    assert first.output == "hello from dsh"
+    assert second.output == "hello from dsh"
+
+    assert factory_calls == 1
+    assert client.prompt == "repair implementation"
+    assert client.session_id == str(second_run_id)
+    assert client.closed is False
+
+    runtime.close()
+
+    assert client.closed is True
+
+
+def test_dsh_runtime_close_is_idempotent() -> None:
+    client = FakeDSHClient()
+
+    runtime = DSHRuntime(
+        dsh_home=Path(".runtime/dsh"),
+        cwd=Path("."),
+        provider="test-provider",
+        model="test-model",
+        client_factory=lambda: client,
+    )
+
+    runtime.close()
+    runtime.close()
+
+    assert client.closed is False

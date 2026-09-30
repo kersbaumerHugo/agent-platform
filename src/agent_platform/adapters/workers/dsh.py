@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from uuid import uuid4
@@ -49,12 +50,24 @@ class DshWorkerExecutor:
         self._env = dict(env or {})
         self._runtime_factory = runtime_factory
         self._notification_callback = notification_callback
+        self._runtime: RuntimeContract | None = None
+        self._runtime_workspace: Path | None = None
 
     async def execute(
         self,
         request: WorkerExecutionRequest,
     ) -> WorkerExecutionResult:
-        runtime = self._build_runtime(request.workspace)
+        workspace = request.workspace.resolve()
+        runtime = self._runtime
+
+        if runtime is None:
+            runtime = self._build_runtime(workspace)
+            self._runtime = runtime
+            self._runtime_workspace = workspace
+        elif workspace != self._runtime_workspace:
+            raise RuntimeError(
+                "DshWorkerExecutor cannot change workspace while its runtime is open."
+            )
 
         prompt = self._build_prompt(request.goal)
 
@@ -69,6 +82,20 @@ class DshWorkerExecutor:
         return WorkerExecutionResult(
             summary=result.output,
         )
+
+    async def close(self) -> None:
+        runtime = self._runtime
+
+        self._runtime = None
+        self._runtime_workspace = None
+
+        if runtime is None:
+            return
+
+        close = getattr(runtime, "close", None)
+
+        if close is not None:
+            await asyncio.to_thread(close)
 
     def _build_runtime(
         self,
