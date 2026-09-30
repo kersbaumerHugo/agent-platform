@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll accepted Agent Platform main revision for deployment
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+RandomizedDelaySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

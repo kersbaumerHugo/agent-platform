@@ -34,7 +34,9 @@ jobs:
         run: python -m compileall -q src tests scripts
 
       - name: Validate trusted deployment shell
-        run: bash -n deploy/trusted/agent01-deploy
+        run: |
+          bash -n deploy/trusted/agent01-deploy
+          bash -n deploy/trusted/agent01-autodeploy
   lint:
     name: Lint
     runs-on: ubuntu-latest

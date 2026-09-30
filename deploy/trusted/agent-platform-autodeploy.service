@@ -1,0 +1,12 @@
+[Unit]
+Description=Agent Platform agent01 Autodeploy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0022
+
+ExecStart=/usr/local/sbin/agent-platform-autodeploy
