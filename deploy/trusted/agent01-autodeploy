@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 022
+
+REPO=/var/lib/agent-platform/trusted-repo
+CURRENT=/opt/agent-platform/current
+DEPLOYER=/usr/local/sbin/agent-platform-deploy
+STATE_DIR=/var/lib/agent-platform/deploy-state
+
+LAST_DEPLOY_FAILED="$STATE_DIR/last-deploy-failed-sha"
+LAST_CI_REJECTED="$STATE_DIR/last-ci-rejected-sha"
+
+mkdir -p "$STATE_DIR"
+
+git_repo() {
+    git \
+        -c safe.directory="$REPO" \
+        -C "$REPO" \
+        "$@"
+}
+
+echo '=== AGENT01 AUTODEPLOY CHECK ==='
+
+if [[ ! -x "$DEPLOYER" ]]; then
+    echo "deployer is missing or not executable: $DEPLOYER" >&2
+    exit 1
+fi
+
+if [[ -n "$(git_repo status --porcelain)" ]]; then
+    echo "trusted repository is dirty; refusing autodeploy" >&2
+    exit 1
+fi
+
+git_repo fetch origin main
+
+TARGET_SHA="$(git_repo rev-parse origin/main)"
+
+if [[ ! "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "invalid origin/main revision: $TARGET_SHA" >&2
+    exit 1
+fi
+
+CURRENT_SHA=""
+
+if [[ -f "$CURRENT/REVISION" ]]; then
+    CURRENT_SHA="$(cat "$CURRENT/REVISION")"
+fi
+
+echo "target=$TARGET_SHA"
+echo "current=${CURRENT_SHA:-unknown}"
+
+if [[ "$CURRENT_SHA" == "$TARGET_SHA" ]]; then
+    echo "already deployed"
+    exit 0
+fi
+
+if [[ -f "$LAST_DEPLOY_FAILED" ]] &&
+   [[ "$(cat "$LAST_DEPLOY_FAILED")" == "$TARGET_SHA" ]]
+then
+    echo "deployment previously failed for this revision; fail-stop active"
+    exit 0
+fi
+
+if [[ -f "$LAST_CI_REJECTED" ]] &&
+   [[ "$(cat "$LAST_CI_REJECTED")" == "$TARGET_SHA" ]]
+then
+    echo "CI previously rejected this revision; waiting for a new main revision"
+    exit 0
+fi
+
+CI_STATE="$(
+    python3 - "$TARGET_SHA" <<'PY'
+import json
+import sys
+import urllib.request
+
+sha = sys.argv[1]
+
+url = (
+    "https://api.github.com/repos/"
+    "kersbaumerHugo/agent-platform/"
+    "actions/workflows/ci.yml/runs"
+    f"?event=push&head_sha={sha}&per_page=10"
+)
+
+request = urllib.request.Request(
+    url,
+    headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "agent-platform-agent01-autodeploy",
+        "X-GitHub-Api-Version": "2022-11-28",
+    },
+)
+
+with urllib.request.urlopen(
+    request,
+    timeout=10,
+) as response:
+    payload = json.load(response)
+
+runs = [
+    run
+    for run in payload.get("workflow_runs", [])
+    if run.get("head_sha") == sha
+    and run.get("event") == "push"
+]
+
+if not runs:
+    print("pending:no-run")
+    raise SystemExit(0)
+
+run = runs[0]
+
+status = run.get("status")
+conclusion = run.get("conclusion")
+
+if status != "completed":
+    print(f"pending:{status or 'unknown'}")
+elif conclusion == "success":
+    print("success")
+else:
+    print(f"failed:{conclusion or 'unknown'}")
+PY
+)"
+
+echo "ci=$CI_STATE"
+
+case "$CI_STATE" in
+    success)
+        ;;
+
+    pending:*)
+        echo "CI has not accepted this revision yet"
+        exit 0
+        ;;
+
+    failed:*)
+        printf '%s\n' "$TARGET_SHA" > "$LAST_CI_REJECTED"
+        echo "CI rejected revision; deployment blocked"
+        exit 0
+        ;;
+
+    *)
+        echo "unexpected CI state: $CI_STATE" >&2
+        exit 1
+        ;;
+esac
+
+echo
+echo '=== DEPLOY ==='
+
+if "$DEPLOYER" "$TARGET_SHA"; then
+    rm -f \
+        "$LAST_DEPLOY_FAILED" \
+        "$LAST_CI_REJECTED"
+
+    echo
+    echo "AUTODEPLOY_OK revision=$TARGET_SHA"
+else
+    rc=$?
+
+    printf '%s\n' "$TARGET_SHA" > "$LAST_DEPLOY_FAILED"
+
+    echo
+    echo "AUTODEPLOY_FAILED revision=$TARGET_SHA rc=$rc" >&2
+    exit "$rc"
+fi
