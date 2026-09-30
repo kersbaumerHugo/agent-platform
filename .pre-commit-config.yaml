@@ -1,0 +1,22 @@
+minimum_pre_commit_version: "4.0.0"
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check-fix
+        name: ruff check --fix
+        entry: python -m ruff check --fix
+        language: system
+        types_or: [python, pyi]
+
+      - id: ruff-format
+        name: ruff format
+        entry: python -m ruff format
+        language: system
+        types_or: [python, pyi]
+
+      - id: git-diff-check
+        name: git diff --cached --check
+        entry: git diff --cached --check
+        language: system
+        pass_filenames: false
