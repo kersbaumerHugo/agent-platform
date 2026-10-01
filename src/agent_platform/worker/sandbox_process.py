@@ -23,7 +23,10 @@ from agent_platform.worker.session import (
     WorkerExecutionResult,
     WorkerExecutor,
 )
-from agent_platform.worker.workspace_hygiene import apply_workspace_hygiene
+from agent_platform.worker.workspace_hygiene import (
+    WorkspaceHygieneError,
+    apply_workspace_hygiene,
+)
 
 _GATEWAY_HOST = "127.0.0.1"
 _GATEWAY_PORT = 18080
@@ -263,6 +266,17 @@ class _PhaseBoundWorkerExecutor:
                 pass
 
 
+async def _apply_workspace_hygiene_recoverably(
+    workspace: Path,
+) -> str | None:
+    try:
+        await apply_workspace_hygiene(workspace)
+    except WorkspaceHygieneError as exc:
+        return str(exc)
+
+    return None
+
+
 async def _execute_with_bounded_self_repair(
     *,
     executor: WorkerExecutor,
@@ -283,25 +297,37 @@ async def _execute_with_bounded_self_repair(
         initial_phase_limited = True
         result = None
 
-    await apply_workspace_hygiene(workspace)
+    initial_hygiene_error = await _apply_workspace_hygiene_recoverably(
+        workspace,
+    )
 
     verification = await run_worker_self_verification(
         workspace,
     )
 
-    if verification.passed and not initial_phase_limited:
+    if verification.passed and not initial_phase_limited and initial_hygiene_error is None:
         assert result is not None
         return result
+
+    repair_goal = build_self_repair_goal(
+        original_goal=goal,
+        verification=verification,
+        phase_limited=initial_phase_limited,
+    )
+
+    if initial_hygiene_error is not None:
+        repair_goal = (
+            f"{repair_goal}\n\n"
+            "Workspace hygiene evidence:\n"
+            f"{initial_hygiene_error}\n"
+            "Repair the workspace so deterministic hygiene can complete."
+        )
 
     try:
         try:
             repaired = await executor.execute(
                 WorkerExecutionRequest(
-                    goal=build_self_repair_goal(
-                        original_goal=goal,
-                        verification=verification,
-                        phase_limited=initial_phase_limited,
-                    ),
+                    goal=repair_goal,
                     workspace=workspace,
                 )
             )
@@ -311,13 +337,15 @@ async def _execute_with_bounded_self_repair(
         if release_runtime is not None:
             await release_runtime()
 
-    await apply_workspace_hygiene(workspace)
+    final_hygiene_error = await _apply_workspace_hygiene_recoverably(
+        workspace,
+    )
 
     final_verification = await run_worker_self_verification(
         workspace,
     )
 
-    if final_verification.passed:
+    if final_verification.passed and final_hygiene_error is None:
         if repaired is not None:
             return repaired
 

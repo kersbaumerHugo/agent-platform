@@ -393,3 +393,82 @@ async def test_worker_releases_runtime_before_post_repair_hygiene(
     ]
 
     assert "reached its model-call limit" in result.summary
+
+
+@pytest.mark.asyncio
+async def test_hygiene_failure_becomes_repair_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from agent_platform.worker.self_verification import (
+        WorkerSelfVerificationResult,
+    )
+    from agent_platform.worker.workspace_hygiene import (
+        WorkspaceHygieneError,
+    )
+
+    calls = []
+
+    class Executor:
+        async def execute(self, request):
+            calls.append(request)
+
+            if len(calls) == 1:
+                raise sandbox_process.WorkerPhaseBudgetReachedError("initial phase limit")
+
+            return sandbox_process.WorkerExecutionResult(
+                summary="repaired",
+            )
+
+    hygiene = AsyncMock(
+        side_effect=[
+            WorkspaceHygieneError("Worker workspace hygiene failed at ruff_format."),
+            None,
+        ]
+    )
+
+    verifier = AsyncMock(
+        side_effect=[
+            WorkerSelfVerificationResult(
+                command=("python", "-m", "pytest", "-q"),
+                exit_code=2,
+                output="SyntaxError: invalid syntax",
+            ),
+            WorkerSelfVerificationResult(
+                command=("python", "-m", "pytest", "-q"),
+                exit_code=0,
+                output="tests passed",
+            ),
+        ]
+    )
+
+    monkeypatch.setattr(
+        sandbox_process,
+        "apply_workspace_hygiene",
+        hygiene,
+    )
+    monkeypatch.setattr(
+        sandbox_process,
+        "run_worker_self_verification",
+        verifier,
+    )
+
+    result = await sandbox_process._execute_with_bounded_self_repair(
+        executor=Executor(),
+        goal="Implement the requested change.",
+        workspace=tmp_path,
+    )
+
+    assert result.summary == "repaired"
+
+    assert len(calls) == 2
+
+    repair_goal = calls[1].goal
+
+    assert "phase limit before completing" in repair_goal
+    assert "SyntaxError: invalid syntax" in repair_goal
+    assert "Workspace hygiene evidence" in repair_goal
+    assert "ruff_format" in repair_goal
+
+    assert hygiene.await_count == 2
+    assert verifier.await_count == 2
