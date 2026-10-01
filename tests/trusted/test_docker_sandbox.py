@@ -120,7 +120,7 @@ async def test_backend_builds_fixed_hardened_command(
     )
     assert contains_all(
         command,
-        ("--pids-limit", "64"),
+        ("--pids-limit", "96"),
     )
     assert contains_all(
         command,
