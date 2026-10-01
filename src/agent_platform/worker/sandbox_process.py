@@ -15,6 +15,7 @@ from agent_platform.worker.execution_budget import (
     PhaseAwareModelCallBudget,
 )
 from agent_platform.worker.self_verification import (
+    WorkerSelfVerificationResult,
     build_self_repair_goal,
     run_worker_self_verification,
 )
@@ -277,6 +278,21 @@ async def _apply_workspace_hygiene_recoverably(
     return None
 
 
+def _final_verification_evidence(
+    *,
+    verification: WorkerSelfVerificationResult,
+    hygiene_error: str | None,
+) -> str:
+    hygiene = hygiene_error if hygiene_error is not None else "ok"
+
+    return (
+        "Final workspace hygiene:\n"
+        f"{hygiene}\n\n"
+        "Final self-verification evidence:\n"
+        f"{verification.repair_feedback()}"
+    )
+
+
 async def _execute_with_bounded_self_repair(
     *,
     executor: WorkerExecutor,
@@ -362,12 +378,18 @@ async def _execute_with_bounded_self_repair(
     else:
         summary = repaired.summary.rstrip()
 
+    evidence = _final_verification_evidence(
+        verification=final_verification,
+        hygiene_error=final_hygiene_error,
+    )
+
     return WorkerExecutionResult(
         summary=(
-            f"{summary}\\n\\n"
+            f"{summary}\n\n"
             "Deterministic Worker self-verification remains failing after "
             "the single bounded self-repair attempt. The candidate must "
-            "still pass authoritative trusted verification."
+            "still pass authoritative trusted verification.\n\n"
+            f"{evidence}"
         )
     )
 
