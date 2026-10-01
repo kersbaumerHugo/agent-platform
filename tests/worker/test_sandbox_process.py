@@ -264,6 +264,14 @@ async def test_worker_self_repair_stops_after_exactly_one_failed_repair(
     assert "remains failing" in result.summary
     assert "authoritative trusted verification" in result.summary
 
+    assert "Final workspace hygiene:\nok" in result.summary
+    assert "Final self-verification evidence:" in result.summary
+    assert "exit_code: 1" in result.summary
+    assert "timed_out: false" in result.summary
+    assert "1 failed" in result.summary
+
+    assert "\\n\\n" not in result.summary
+
 
 @pytest.mark.asyncio
 async def test_phase_limited_initial_attempt_still_runs_one_repair(
