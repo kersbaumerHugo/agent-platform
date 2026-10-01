@@ -195,26 +195,35 @@ async def test_dsh_worker_rejects_workspace_change_while_runtime_open(
     await executor.close()
 
 
-def test_dsh_worker_prompt_requires_plan_before_editing() -> None:
+def test_dsh_worker_prompt_requires_progressive_execution() -> None:
     prompt = DshWorkerExecutor._build_prompt(
         "Modify exactly one test file and add exactly two assertions."
     )
 
-    inspect = prompt.index("1. INSPECT BEFORE EDITING")
-    plan = prompt.index("2. PLAN BEFORE EDITING")
+    inspect = prompt.index("1. INSPECT ENOUGH TO ACT")
+    plan = prompt.index("2. PLAN ENOUGH TO EDIT SAFELY")
     implement = prompt.index("3. IMPLEMENT FROM EVIDENCE")
-    verify = prompt.index("4. VERIFY AGAINST THE PLAN")
+    verify = prompt.index("4. VERIFY AND REFINE")
 
     assert inspect < plan < implement < verify
 
-    assert "before modifying anything" in prompt
+    assert "Inspect the exact target file first" in prompt
+    assert "minimum directly relevant" in prompt
+    assert "make the first safe workspace change" in prompt
+
     assert "target files" in prompt
-    assert "existing contracts/types to reuse" in prompt
+    assert "confirmed contracts/types to reuse" in prompt
     assert "explicit acceptance criteria" in prompt
     assert "verification commands" in prompt
 
-    assert "Planning is not completion" in prompt
-    assert "do not stop after producing the plan" in prompt
+    assert "Planning is bounded preparation for action" in prompt
+
+    assert "make the first workspace edit before continuing optional exploration" in prompt
+
+    assert (
+        "Prefer inspect -> edit -> inspect a missing detail -> edit over "
+        "inspect everything -> plan everything -> edit at the end." in prompt
+    )
 
     assert "Do not invent APIs, fields, attributes, enum values, or behavior" in prompt
 
@@ -222,6 +231,8 @@ def test_dsh_worker_prompt_requires_plan_before_editing() -> None:
         "Treat exact counts, sequences, file scopes, types, enum values, "
         "and assertions specified by the goal as hard contracts." in prompt
     )
+
+    assert "A plan is useful only if it leads to workspace changes" in prompt
 
     assert "against every acceptance criterion" in prompt
 
