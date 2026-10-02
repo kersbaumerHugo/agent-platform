@@ -146,6 +146,14 @@ async def test_backend_builds_fixed_hardened_command(
 
     assert contains_all(
         command,
+        (
+            "--env",
+            ("AGENT_PLATFORM_DIAGNOSTIC_VERIFIER_SOCKET=/run/diagnostic-verifier.sock"),
+        ),
+    )
+
+    assert contains_all(
+        command,
         ("--env", "HOME=/tmp"),
     )
     assert contains_all(
@@ -172,9 +180,10 @@ async def test_backend_builds_fixed_hardened_command(
 
     mounts = [command[index + 1] for index, token in enumerate(command[:-1]) if token == "--mount"]
 
-    assert len(mounts) == 2
+    assert len(mounts) == 3
     assert any("dst=/workspace" in mount and ",readonly" not in mount for mount in mounts)
     assert any("dst=/run/model-gateway.sock,readonly" in mount for mount in mounts)
+    assert any(("dst=/run/diagnostic-verifier.sock,readonly") in mount for mount in mounts)
 
     assert execution.stdin == (b"Fix the requested test.")
     assert execution.container_name == ("agent-platform-coding-2d4cf0d559f04cd59d46612b35f9598d")
@@ -285,6 +294,7 @@ def test_mount_paths_reject_docker_mount_separator(
             request=request(),
             workspace=workspace,
             socket_path=runtime_root / "gateway.sock",
+            diagnostic_socket_path=(runtime_root / "diagnostic.sock"),
             uid=1000,
             gid=1000,
         )
@@ -305,6 +315,24 @@ def test_gateway_socket_path_stays_short_for_long_runtime_root(
 
     assert socket_path.parent == runtime_root.resolve()
     assert socket_path.name == ("gw-2d4cf0d559f04cd5.sock")
+    assert len(str(socket_path).encode("utf-8")) < 108
+
+
+def test_diagnostic_socket_path_stays_short(
+    tmp_path: Path,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+
+    backend = DockerSandboxBackend(
+        config=build_config(runtime_root),
+        runner=RecordingRunner(),
+    )
+
+    socket_path = backend._diagnostic_socket_path(request())
+
+    assert socket_path.parent == (runtime_root.resolve())
+    assert socket_path.name == ("dv-2d4cf0d559f04cd5.sock")
     assert len(str(socket_path).encode("utf-8")) < 108
 
 
