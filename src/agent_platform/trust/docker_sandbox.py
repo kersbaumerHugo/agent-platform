@@ -8,6 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from agent_platform.trust.diagnostic_verification import (
+    TrustedDiagnosticVerificationHandler,
+    UnixSocketDiagnosticVerificationServer,
+)
+from agent_platform.trust.diagnostic_verification_docker import (
+    DockerDiagnosticVerificationAuthority,
+)
 from agent_platform.trust.sandbox_execution import (
     SandboxExecutionRequest,
 )
@@ -16,6 +23,9 @@ from agent_platform.trust.sandbox_gateway_relay import (
 )
 from agent_platform.trust.sandbox_service import (
     SandboxExecutionOutcome,
+)
+from agent_platform.trust.verification_docker import (
+    DockerVerificationConfig,
 )
 
 
@@ -28,6 +38,9 @@ class DockerSandboxTimeoutError(DockerSandboxError):
 
 
 _IMAGE_REFERENCE_PATTERN = re.compile(r"^(?:.+@)?sha256:[0-9a-f]{64}$")
+
+_DIAGNOSTIC_VERIFIER_CONTAINER_SOCKET = Path("/run/diagnostic-verifier.sock")
+_DIAGNOSTIC_VERIFICATION_TIMEOUT_SECONDS = 90.0
 
 
 @dataclass(frozen=True)
@@ -279,6 +292,7 @@ class DockerSandboxBackend:
         gid = stat.st_gid
 
         socket_path = self._gateway_socket_path(request)
+        diagnostic_socket_path = self._diagnostic_socket_path(request)
 
         relay = UnixSocketGatewayCredentialRelay(
             socket_path=socket_path,
@@ -288,11 +302,38 @@ class DockerSandboxBackend:
             socket_mode=0o660,
         )
 
+        diagnostic_authority = DockerDiagnosticVerificationAuthority(
+            workspace=workspace,
+            config=DockerVerificationConfig(
+                image=self._config.image,
+                runtime_root=self._config.runtime_root,
+                docker_binary=self._config.docker_binary,
+                hard_timeout_seconds=(_DIAGNOSTIC_VERIFICATION_TIMEOUT_SECONDS),
+            ),
+        )
+
+        diagnostic_handler = TrustedDiagnosticVerificationHandler(
+            authority=diagnostic_authority,
+            max_requests=2,
+        )
+
+        diagnostic_server = UnixSocketDiagnosticVerificationServer(
+            socket_path=diagnostic_socket_path,
+            handler=diagnostic_handler,
+        )
+
         try:
             await relay.start()
+            await diagnostic_server.start()
 
             os.chown(
                 socket_path,
+                uid,
+                gid,
+            )
+
+            os.chown(
+                diagnostic_socket_path,
                 uid,
                 gid,
             )
@@ -302,6 +343,7 @@ class DockerSandboxBackend:
                     request=request,
                     workspace=workspace,
                     socket_path=socket_path,
+                    diagnostic_socket_path=(diagnostic_socket_path),
                     uid=uid,
                     gid=gid,
                 ),
@@ -313,6 +355,7 @@ class DockerSandboxBackend:
 
             return SandboxExecutionOutcome(summary=summary)
         finally:
+            await diagnostic_server.close()
             await relay.close()
 
     def _build_command(
@@ -321,14 +364,21 @@ class DockerSandboxBackend:
         request: SandboxExecutionRequest,
         workspace: Path,
         socket_path: Path,
+        diagnostic_socket_path: Path,
         uid: int,
         gid: int,
     ) -> tuple[str, ...]:
         self._reject_mount_separator(workspace)
         self._reject_mount_separator(socket_path)
+        self._reject_mount_separator(diagnostic_socket_path)
 
         workspace_mount = f"type=bind,src={workspace},dst=/workspace"
         gateway_mount = f"type=bind,src={socket_path},dst=/run/model-gateway.sock,readonly"
+        diagnostic_mount = (
+            f"type=bind,src={diagnostic_socket_path},"
+            f"dst={_DIAGNOSTIC_VERIFIER_CONTAINER_SOCKET},"
+            "readonly"
+        )
 
         return (
             self._config.docker_binary,
@@ -360,12 +410,16 @@ class DockerSandboxBackend:
             workspace_mount,
             "--mount",
             gateway_mount,
+            "--mount",
+            diagnostic_mount,
             "--env",
             ("DEEPSEEK_BASE_URL=http://127.0.0.1:18080/internal/v1"),
             "--env",
             ("DEEPSEEK_API_KEY=sandbox-relay-placeholder"),
             "--env",
             ("AGENT_PLATFORM_GATEWAY_SOCKET=/run/model-gateway.sock"),
+            "--env",
+            (f"AGENT_PLATFORM_DIAGNOSTIC_VERIFIER_SOCKET={_DIAGNOSTIC_VERIFIER_CONTAINER_SOCKET}"),
             "--env",
             "HOME=/tmp",
             "--env",
@@ -385,6 +439,12 @@ class DockerSandboxBackend:
         request: SandboxExecutionRequest,
     ) -> Path:
         return self._config.runtime_root / (f"gw-{request.execution_id.hex[:16]}.sock")
+
+    def _diagnostic_socket_path(
+        self,
+        request: SandboxExecutionRequest,
+    ) -> Path:
+        return self._config.runtime_root / (f"dv-{request.execution_id.hex[:16]}.sock")
 
     @staticmethod
     def _container_name(
