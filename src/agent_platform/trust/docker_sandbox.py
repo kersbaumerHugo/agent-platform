@@ -42,7 +42,7 @@ class DockerSandboxConfig:
     hard_timeout_seconds: float = 300.0
     # Worker sandboxes run orchestration, model runtime and verification
     # processes together. 96 caused PID pressure during self-verification.
-    pids_limit: int = 128
+    pids_limit: int = 160
     memory_limit: str = "256m"
     cpu_limit: str = "1"
     tmpfs_spec: str = "/tmp:rw,exec,nosuid,nodev,size=16m"
