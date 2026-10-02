@@ -40,7 +40,9 @@ class DockerSandboxConfig:
     gateway_api_key: str
     docker_binary: str = "/usr/bin/docker"
     hard_timeout_seconds: float = 300.0
-    pids_limit: int = 96
+    # Worker sandboxes run orchestration, model runtime and verification
+    # processes together. 96 caused PID pressure during self-verification.
+    pids_limit: int = 128
     memory_limit: str = "256m"
     cpu_limit: str = "1"
     tmpfs_spec: str = "/tmp:rw,exec,nosuid,nodev,size=16m"
