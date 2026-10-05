@@ -53,11 +53,6 @@ class ToolRegistry:
         name: str,
         request: ToolRequest,
     ) -> ToolResult:
-        try:
-            tool = self._tools[name]
-        except KeyError as exc:
-            raise KeyError(f"Unknown tool: {name}") from exc
-
         started = perf_counter()
 
         with self._tracer.start_as_current_span("tool.invoke") as span:
@@ -81,6 +76,11 @@ class ToolRegistry:
             )
 
             try:
+                try:
+                    tool = self._tools[name]
+                except KeyError as exc:
+                    raise KeyError(f"Unknown tool: {name}") from exc
+
                 result = await tool.invoke(request)
 
                 if result.run_id != request.run_id:
