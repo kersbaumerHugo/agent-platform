@@ -22,6 +22,11 @@ from agent_platform.application.supervised_coding_publication import (
     SupervisedCodingPublicationService,
 )
 from agent_platform.application.tool_registry import ToolRegistry
+from agent_platform.domain.coding import (
+    CodingSemanticReviewDecision,
+    CodingSemanticReviewResult,
+    CodingTask,
+)
 from agent_platform.domain.observability import ObservationEvent
 from agent_platform.domain.tool import ToolRequest
 from agent_platform.trust.change_set_identity import identify_change_set
@@ -116,6 +121,19 @@ class StaticVerification:
         return self.verified
 
 
+class StaticReviewer:
+    async def review(
+        self,
+        *,
+        task: CodingTask,
+        verified: VerifiedChangeSet,
+    ) -> CodingSemanticReviewResult:
+        del task, verified
+        return CodingSemanticReviewResult(
+            decision=CodingSemanticReviewDecision.APPROVE,
+        )
+
+
 @dataclass
 class StaticPublisher:
     verified: VerifiedChangeSet
@@ -146,6 +164,7 @@ async def test_tool_to_capability_preserves_coding_trace_context() -> None:
     coding_service = SupervisedCodingPublicationService(
         preparation=DynamicPreparation(change_set),
         verification=StaticVerification(verified),
+        reviewer=StaticReviewer(),
         publisher=StaticPublisher(verified),
         tracer=tracer,
     )
@@ -209,4 +228,5 @@ async def test_tool_to_capability_preserves_coding_trace_context() -> None:
         == result.output["change_set_identity"]
     )
     assert coding_span.attributes["agent_platform.coding.verification.outcome"] == "pass"
+    assert coding_span.attributes["agent_platform.coding.semantic_review.decision"] == "approve"
     assert coding_span.attributes["agent_platform.coding.publication.outcome"] == "published"

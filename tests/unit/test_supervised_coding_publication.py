@@ -8,9 +8,12 @@ import pytest
 from agent_platform.application.supervised_coding import PreparedCodingTask
 from agent_platform.application.supervised_coding_publication import (
     CodingPublicationIdentityMismatchError,
+    CodingSemanticReviewRejectedError,
     SupervisedCodingPublicationService,
 )
 from agent_platform.domain.coding import (
+    CodingSemanticReviewDecision,
+    CodingSemanticReviewResult,
     CodingTask,
 )
 from agent_platform.trust.change_set_identity import identify_change_set
@@ -83,6 +86,12 @@ def _verified(change_set: ChangeSet) -> VerifiedChangeSet:
     )
 
 
+def _approved_review() -> CodingSemanticReviewResult:
+    return CodingSemanticReviewResult(
+        decision=CodingSemanticReviewDecision.APPROVE,
+    )
+
+
 @dataclass
 class RecordingPreparation:
     prepared: PreparedCodingTask
@@ -110,6 +119,21 @@ class RecordingVerification:
 
 
 @dataclass
+class RecordingReviewer:
+    result: CodingSemanticReviewResult
+    inputs: list[tuple[CodingTask, VerifiedChangeSet]] = field(default_factory=list)
+
+    async def review(
+        self,
+        *,
+        task: CodingTask,
+        verified: VerifiedChangeSet,
+    ) -> CodingSemanticReviewResult:
+        self.inputs.append((task, verified))
+        return self.result
+
+
+@dataclass
 class RecordingPublisher:
     result: VerifiedPublicationResult
     verified_inputs: list[VerifiedChangeSet] = field(default_factory=list)
@@ -123,10 +147,11 @@ class RecordingPublisher:
 
 
 @pytest.mark.asyncio
-async def test_supervised_flow_publishes_only_verified_change_set() -> None:
+async def test_supervised_flow_publishes_only_verified_and_reviewed_change_set() -> None:
     task = _task()
     change_set = _change_set()
     verified = _verified(change_set)
+
     preparation = RecordingPreparation(
         prepared=PreparedCodingTask(
             task_id=TASK_ID,
@@ -134,18 +159,19 @@ async def test_supervised_flow_publishes_only_verified_change_set() -> None:
             change_set=change_set,
         )
     )
-    verification = RecordingVerification(
-        verified=verified,
-    )
+    verification = RecordingVerification(verified=verified)
+    reviewer = RecordingReviewer(result=_approved_review())
     publisher = RecordingPublisher(
         result=VerifiedPublicationResult(
             reference="https://github.com/kersbaumerHugo/agent-platform/pull/123",
             identity=verified.identity,
         )
     )
+
     service = SupervisedCodingPublicationService(
         preparation=preparation,
         verification=verification,
+        reviewer=reviewer,
         publisher=publisher,
     )
 
@@ -161,15 +187,18 @@ async def test_supervised_flow_publishes_only_verified_change_set() -> None:
     assert result.publication_outcome.value == "published"
     assert result.publication_reference.endswith("/pull/123")
     assert result.pull_request_number == 123
+
     assert preparation.tasks == [task]
     assert verification.change_sets == [change_set]
+    assert reviewer.inputs == [(task, verified)]
     assert publisher.verified_inputs == [verified]
 
 
 @pytest.mark.asyncio
-async def test_verification_rejection_blocks_publication() -> None:
+async def test_verification_rejection_blocks_review_and_publication() -> None:
     task = _task()
     change_set = _change_set()
+
     preparation = RecordingPreparation(
         prepared=PreparedCodingTask(
             task_id=TASK_ID,
@@ -200,19 +229,113 @@ async def test_verification_rejection_blocks_publication() -> None:
             )
             raise VerificationRejectedError(failed)
 
+    reviewer = RecordingReviewer(result=_approved_review())
     publisher = RecordingPublisher(
         result=VerifiedPublicationResult(
             reference="must-not-be-used",
             identity=identify_change_set(change_set),
         )
     )
+
     service = SupervisedCodingPublicationService(
         preparation=preparation,
         verification=RejectingVerification(),
+        reviewer=reviewer,
         publisher=publisher,
     )
 
     with pytest.raises(VerificationRejectedError):
+        await service.execute(task)
+
+    assert reviewer.inputs == []
+    assert publisher.verified_inputs == []
+
+
+@pytest.mark.asyncio
+async def test_semantic_review_rejection_blocks_publication_and_preserves_reasons() -> None:
+    task = _task()
+    change_set = _change_set()
+    verified = _verified(change_set)
+
+    reviewer = RecordingReviewer(
+        result=CodingSemanticReviewResult(
+            decision=CodingSemanticReviewDecision.REJECT,
+            reasons=(
+                "Existing unrelated tests were removed.",
+                "The diff changes behavior outside the requested task.",
+            ),
+        )
+    )
+    publisher = RecordingPublisher(
+        result=VerifiedPublicationResult(
+            reference="must-not-be-used",
+            identity=verified.identity,
+        )
+    )
+
+    service = SupervisedCodingPublicationService(
+        preparation=RecordingPreparation(
+            prepared=PreparedCodingTask(
+                task_id=TASK_ID,
+                execution_id=EXECUTION_ID,
+                change_set=change_set,
+            )
+        ),
+        verification=RecordingVerification(verified=verified),
+        reviewer=reviewer,
+        publisher=publisher,
+    )
+
+    with pytest.raises(CodingSemanticReviewRejectedError) as exc_info:
+        await service.execute(task)
+
+    assert exc_info.value.result.reasons == (
+        "Existing unrelated tests were removed.",
+        "The diff changes behavior outside the requested task.",
+    )
+    assert publisher.verified_inputs == []
+
+
+@pytest.mark.asyncio
+async def test_semantic_reviewer_failure_blocks_publication() -> None:
+    task = _task()
+    change_set = _change_set()
+    verified = _verified(change_set)
+
+    class FailingReviewer:
+        async def review(
+            self,
+            *,
+            task: CodingTask,
+            verified: VerifiedChangeSet,
+        ) -> CodingSemanticReviewResult:
+            del task, verified
+            raise RuntimeError("semantic reviewer failed")
+
+    publisher = RecordingPublisher(
+        result=VerifiedPublicationResult(
+            reference="must-not-be-used",
+            identity=verified.identity,
+        )
+    )
+
+    service = SupervisedCodingPublicationService(
+        preparation=RecordingPreparation(
+            prepared=PreparedCodingTask(
+                task_id=TASK_ID,
+                execution_id=EXECUTION_ID,
+                change_set=change_set,
+            )
+        ),
+        verification=RecordingVerification(verified=verified),
+        reviewer=FailingReviewer(),
+        publisher=publisher,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="semantic reviewer failed",
+    ):
         await service.execute(task)
 
     assert publisher.verified_inputs == []
@@ -223,12 +346,14 @@ async def test_publication_identity_mismatch_fails_closed() -> None:
     task = _task()
     change_set = _change_set()
     verified = _verified(change_set)
+
     different = ChangeSet(
         base_revision=change_set.base_revision,
         branch_name="coding/different",
         commit_message=change_set.commit_message,
         changes=change_set.changes,
     )
+
     service = SupervisedCodingPublicationService(
         preparation=RecordingPreparation(
             prepared=PreparedCodingTask(
@@ -237,9 +362,8 @@ async def test_publication_identity_mismatch_fails_closed() -> None:
                 change_set=change_set,
             )
         ),
-        verification=RecordingVerification(
-            verified=verified,
-        ),
+        verification=RecordingVerification(verified=verified),
+        reviewer=RecordingReviewer(result=_approved_review()),
         publisher=RecordingPublisher(
             result=VerifiedPublicationResult(
                 reference="https://github.com/kersbaumerHugo/agent-platform/pull/123",
@@ -256,7 +380,7 @@ async def test_publication_identity_mismatch_fails_closed() -> None:
 
 
 @pytest.mark.asyncio
-async def test_preparation_failure_stops_verification_and_publication() -> None:
+async def test_preparation_failure_stops_verification_review_and_publication() -> None:
     task = _task()
     change_set = _change_set()
     verified = _verified(change_set)
@@ -269,18 +393,19 @@ async def test_preparation_failure_stops_verification_and_publication() -> None:
             assert requested == task
             raise RuntimeError("preparation failed")
 
-    verification = RecordingVerification(
-        verified=verified,
-    )
+    verification = RecordingVerification(verified=verified)
+    reviewer = RecordingReviewer(result=_approved_review())
     publisher = RecordingPublisher(
         result=VerifiedPublicationResult(
             reference="must-not-be-used",
             identity=verified.identity,
         )
     )
+
     service = SupervisedCodingPublicationService(
         preparation=FailingPreparation(),
         verification=verification,
+        reviewer=reviewer,
         publisher=publisher,
     )
 
@@ -291,4 +416,5 @@ async def test_preparation_failure_stops_verification_and_publication() -> None:
         await service.execute(task)
 
     assert verification.change_sets == []
+    assert reviewer.inputs == []
     assert publisher.verified_inputs == []

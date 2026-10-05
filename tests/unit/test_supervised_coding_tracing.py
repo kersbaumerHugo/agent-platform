@@ -16,7 +16,11 @@ from agent_platform.application.supervised_coding_publication import (
     CodingPublicationIdentityMismatchError,
     SupervisedCodingPublicationService,
 )
-from agent_platform.domain.coding import CodingTask
+from agent_platform.domain.coding import (
+    CodingSemanticReviewDecision,
+    CodingSemanticReviewResult,
+    CodingTask,
+)
 from agent_platform.trust.change_set_identity import identify_change_set
 from agent_platform.trust.publisher import (
     ChangeSet,
@@ -107,6 +111,19 @@ class StaticVerification:
         return self.verified
 
 
+class StaticReviewer:
+    async def review(
+        self,
+        *,
+        task: CodingTask,
+        verified: VerifiedChangeSet,
+    ) -> CodingSemanticReviewResult:
+        del task, verified
+        return CodingSemanticReviewResult(
+            decision=CodingSemanticReviewDecision.APPROVE,
+        )
+
+
 @dataclass
 class StaticPublisher:
     result: VerifiedPublicationResult
@@ -142,6 +159,7 @@ async def test_supervised_coding_emits_safe_correlation_span() -> None:
             )
         ),
         verification=StaticVerification(verified),
+        reviewer=StaticReviewer(),
         publisher=StaticPublisher(
             VerifiedPublicationResult(
                 reference="https://github.com/kersbaumerHugo/agent-platform/pull/123",
@@ -174,6 +192,7 @@ async def test_supervised_coding_emits_safe_correlation_span() -> None:
         == result.verification_profile_version
     )
     assert span.attributes["agent_platform.coding.verification.outcome"] == "pass"
+    assert span.attributes["agent_platform.coding.semantic_review.decision"] == "approve"
     assert span.attributes["agent_platform.coding.publication.outcome"] == "published"
 
     serialized_attributes = repr(dict(span.attributes))
@@ -208,6 +227,7 @@ async def test_supervised_coding_trace_marks_fail_closed_error() -> None:
             )
         ),
         verification=StaticVerification(verified),
+        reviewer=StaticReviewer(),
         publisher=StaticPublisher(
             VerifiedPublicationResult(
                 reference="https://github.com/kersbaumerHugo/agent-platform/pull/123",
@@ -239,3 +259,71 @@ async def test_supervised_coding_trace_marks_fail_closed_error() -> None:
     assert "agent_platform.coding.publication.outcome" not in span.attributes
 
     assert any(event.name == "exception" for event in span.events)
+
+
+@pytest.mark.asyncio
+async def test_semantic_review_rejection_does_not_leak_reasons_to_trace() -> None:
+    from agent_platform.application.supervised_coding_publication import (
+        CodingSemanticReviewRejectedError,
+    )
+    from agent_platform.domain.coding import (
+        CodingSemanticReviewDecision,
+        CodingSemanticReviewResult,
+    )
+
+    change_set = _change_set()
+    verified = _verified(change_set)
+    exporter, tracer = _tracer()
+
+    secret_reason = "SECRET_REVIEW_REASON_MUST_NOT_ENTER_TELEMETRY"
+
+    class RejectingReviewer:
+        async def review(
+            self,
+            *,
+            task: CodingTask,
+            verified: VerifiedChangeSet,
+        ) -> CodingSemanticReviewResult:
+            del task, verified
+            return CodingSemanticReviewResult(
+                decision=CodingSemanticReviewDecision.REJECT,
+                reasons=(secret_reason,),
+            )
+
+    service = SupervisedCodingPublicationService(
+        preparation=StaticPreparation(
+            PreparedCodingTask(
+                task_id=TASK_ID,
+                execution_id=EXECUTION_ID,
+                change_set=change_set,
+            )
+        ),
+        verification=StaticVerification(verified),
+        reviewer=RejectingReviewer(),
+        publisher=StaticPublisher(
+            VerifiedPublicationResult(
+                reference="https://github.com/kersbaumerHugo/agent-platform/pull/123",
+                identity=verified.identity,
+            )
+        ),
+        tracer=tracer,
+    )
+
+    with pytest.raises(CodingSemanticReviewRejectedError) as exc_info:
+        await service.execute(_task())
+
+    assert exc_info.value.result.reasons == (secret_reason,)
+    assert secret_reason not in str(exc_info.value)
+
+    spans = exporter.get_finished_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+
+    assert span.status.status_code is StatusCode.ERROR
+    assert span.attributes is not None
+    assert span.attributes["error.type"] == "CodingSemanticReviewRejectedError"
+
+    serialized_span = repr(span)
+
+    assert secret_reason not in serialized_span

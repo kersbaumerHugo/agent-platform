@@ -14,7 +14,11 @@ from agent_platform.application.supervised_coding_publication import (
     CodingRepairNoChangeError,
     SupervisedCodingPublicationService,
 )
-from agent_platform.domain.coding import CodingTask
+from agent_platform.domain.coding import (
+    CodingSemanticReviewDecision,
+    CodingSemanticReviewResult,
+    CodingTask,
+)
 from agent_platform.trust.change_set_identity import identify_change_set
 from agent_platform.trust.publisher import (
     ChangeSet,
@@ -169,6 +173,19 @@ class SequenceRepairer:
         return self.candidates.pop(0)
 
 
+class ApprovingReviewer:
+    async def review(
+        self,
+        *,
+        task: CodingTask,
+        verified: VerifiedChangeSet,
+    ) -> CodingSemanticReviewResult:
+        del task, verified
+        return CodingSemanticReviewResult(
+            decision=CodingSemanticReviewDecision.APPROVE,
+        )
+
+
 @dataclass
 class RecordingPublisher:
     verified_inputs: list[VerifiedChangeSet] = field(default_factory=list)
@@ -202,6 +219,7 @@ def _service(
     service = SupervisedCodingPublicationService(
         preparation=FixedPreparation(initial),
         verification=verification,
+        reviewer=ApprovingReviewer(),
         repairer=repairer,
         publisher=publisher,
     )

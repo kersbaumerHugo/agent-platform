@@ -4,7 +4,7 @@ import re
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _GIT_SHA1_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _CHANGE_SET_IDENTITY_PATTERN = re.compile(r"^v1:sha256:[0-9a-f]{64}$")
@@ -18,6 +18,53 @@ class CodingVerificationOutcome(StrEnum):
 
 class CodingPublicationOutcome(StrEnum):
     PUBLISHED = "published"
+
+
+MAX_CODING_SEMANTIC_REVIEW_REASONS = 8
+MAX_CODING_SEMANTIC_REVIEW_REASON_CHARS = 512
+
+
+class CodingSemanticReviewDecision(StrEnum):
+    APPROVE = "approve"
+    REJECT = "reject"
+
+
+class CodingSemanticReviewResult(BaseModel):
+    """Typed fail-closed semantic review decision for one verified ChangeSet."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+    )
+
+    decision: CodingSemanticReviewDecision
+    reasons: tuple[str, ...] = Field(
+        default_factory=tuple,
+        max_length=MAX_CODING_SEMANTIC_REVIEW_REASONS,
+    )
+
+    @field_validator("reasons")
+    @classmethod
+    def normalize_reasons(
+        cls,
+        value: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        normalized = tuple(reason.strip() for reason in value)
+
+        if any(not reason for reason in normalized):
+            raise ValueError("Semantic review reasons must not be blank.")
+
+        if any(len(reason) > MAX_CODING_SEMANTIC_REVIEW_REASON_CHARS for reason in normalized):
+            raise ValueError("Semantic review reason exceeds the size limit.")
+
+        return normalized
+
+    @model_validator(mode="after")
+    def require_rejection_reason(self) -> CodingSemanticReviewResult:
+        if self.decision is CodingSemanticReviewDecision.REJECT and not self.reasons:
+            raise ValueError("Rejected semantic review requires at least one reason.")
+
+        return self
 
 
 class CodingTask(BaseModel):
