@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +13,7 @@ from agent_platform.trust.change_set_identity import (
 from agent_platform.trust.change_set_materializer import MaterializedChangeSet
 from agent_platform.trust.publisher import ChangeSet
 from agent_platform.trust.verification import (
+    MAX_VERIFICATION_SUMMARY_CHARS,
     VerificationOutcome,
     VerificationResult,
 )
@@ -45,7 +47,38 @@ class VerificationRejectedError(RuntimeError):
         result: VerificationResult,
     ) -> None:
         self.result = result
-        super().__init__(f"Authoritative verification rejected ChangeSet: {result.reason_code}.")
+
+        diagnostics = self._render_diagnostics(result)
+        message = f"Authoritative verification rejected ChangeSet: {result.reason_code}."
+
+        if diagnostics:
+            message += f" Untrusted verification diagnostics: {diagnostics}"
+
+        super().__init__(message)
+
+    @staticmethod
+    def _render_diagnostics(
+        result: VerificationResult,
+    ) -> str:
+        rendered_steps: list[str] = []
+
+        for step in result.steps:
+            if step.outcome is VerificationOutcome.PASS:
+                continue
+
+            exit_code = str(step.exit_code) if step.exit_code is not None else "none"
+
+            rendered_steps.append(
+                f"check={step.check.value}; "
+                f"outcome={step.outcome.value}; "
+                f"exit_code={exit_code}; "
+                "untrusted_summary_json="
+                f"{json.dumps(step.summary, ensure_ascii=False)}"
+            )
+
+        diagnostics = " | ".join(rendered_steps)
+
+        return diagnostics[:MAX_VERIFICATION_SUMMARY_CHARS]
 
 
 class ChangeSetIdentityMismatchError(RuntimeError):

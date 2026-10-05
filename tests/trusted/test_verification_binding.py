@@ -17,6 +17,7 @@ from agent_platform.trust.publisher import (
     FileChangeOperation,
 )
 from agent_platform.trust.verification import (
+    MAX_VERIFICATION_SUMMARY_CHARS,
     VerificationOutcome,
     VerificationResult,
     VerificationStepResult,
@@ -182,6 +183,39 @@ async def test_failed_verification_never_returns_verified_token(
         await service.verify(change_set)
 
     assert exc_info.value.result.outcome is VerificationOutcome.FAIL
+
+    message = str(exc_info.value)
+
+    assert "check_failed" in message
+    assert f"check={VerificationCheck.SYNTAX.value}" in message
+    assert "outcome=fail" in message
+    assert "exit_code=1" in message
+    assert 'untrusted_summary_json="fail"' in message
+
+
+def test_rejected_verification_diagnostics_are_bounded() -> None:
+    result = VerificationResult(
+        profile_version="m12-v0",
+        outcome=VerificationOutcome.FAIL,
+        reason_code="check_failed",
+        steps=(
+            VerificationStepResult(
+                check=VerificationCheck.SYNTAX,
+                outcome=VerificationOutcome.FAIL,
+                exit_code=1,
+                summary="x" * MAX_VERIFICATION_SUMMARY_CHARS,
+            ),
+        ),
+    )
+
+    message = str(VerificationRejectedError(result))
+    marker = "Untrusted verification diagnostics: "
+
+    assert marker in message
+
+    diagnostics = message.split(marker, 1)[1]
+
+    assert len(diagnostics) <= MAX_VERIFICATION_SUMMARY_CHARS
 
 
 @pytest.mark.asyncio
