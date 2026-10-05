@@ -105,6 +105,7 @@ def build_supervised_coding_capability(
             base_branch=base_branch,
         ),
         executor=sandbox_executor,
+        trusted_repo_root=trusted_repository,
     )
 
     preparation = SupervisedCodingService(

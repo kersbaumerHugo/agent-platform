@@ -8,6 +8,7 @@ from agent_platform.trust.publisher import (
     FileChangeOperation,
 )
 from agent_platform.worker.session import (
+    WorkerChangeSetEvidenceMismatchError,
     WorkerDevelopmentSession,
     WorkerDevelopmentTask,
     WorkerExecutionRequest,
@@ -37,7 +38,7 @@ def git(
 @pytest.fixture
 def remote_repo(
     tmp_path: Path,
-) -> tuple[Path, str]:
+) -> tuple[Path, Path, str]:
     remote = tmp_path / "remote.git"
 
     subprocess.run(
@@ -74,7 +75,7 @@ def remote_repo(
 
     revision = git(seed, "rev-parse", "HEAD")
 
-    return remote, revision
+    return remote, seed, revision
 
 
 @dataclass
@@ -154,7 +155,7 @@ async def test_session_builds_change_set_and_cleans_workspace(
     tmp_path: Path,
     remote_repo: tuple[Path, str],
 ) -> None:
-    remote, revision = remote_repo
+    remote, trusted, revision = remote_repo
     parent = tmp_path / "workspaces"
 
     session = WorkerDevelopmentSession(
@@ -163,6 +164,7 @@ async def test_session_builds_change_set_and_cleans_workspace(
             workspace_parent=parent,
         ),
         executor=FakeExecutor(),
+        trusted_repo_root=trusted,
     )
 
     change_set = await session.run(
@@ -189,7 +191,7 @@ async def test_session_cleans_workspace_when_executor_fails(
     tmp_path: Path,
     remote_repo: tuple[Path, str],
 ) -> None:
-    remote, _ = remote_repo
+    remote, trusted, _ = remote_repo
     parent = tmp_path / "workspaces"
 
     session = WorkerDevelopmentSession(
@@ -198,6 +200,7 @@ async def test_session_cleans_workspace_when_executor_fails(
             workspace_parent=parent,
         ),
         executor=FailingExecutor(),
+        trusted_repo_root=trusted,
     )
 
     with pytest.raises(
@@ -220,7 +223,7 @@ async def test_session_retries_once_when_first_attempt_has_no_changes(
     tmp_path: Path,
     remote_repo: tuple[Path, str],
 ) -> None:
-    remote, revision = remote_repo
+    remote, trusted, revision = remote_repo
     parent = tmp_path / "workspaces"
     executor = NoChangeThenChangeExecutor()
 
@@ -230,6 +233,7 @@ async def test_session_retries_once_when_first_attempt_has_no_changes(
             workspace_parent=parent,
         ),
         executor=executor,
+        trusted_repo_root=trusted,
     )
 
     change_set = await session.run(
@@ -257,7 +261,7 @@ async def test_session_fails_after_bounded_no_change_retry(
     tmp_path: Path,
     remote_repo: tuple[Path, str],
 ) -> None:
-    remote, _ = remote_repo
+    remote, trusted, _ = remote_repo
     parent = tmp_path / "workspaces"
     executor = AlwaysNoChangeExecutor()
 
@@ -267,6 +271,7 @@ async def test_session_fails_after_bounded_no_change_retry(
             workspace_parent=parent,
         ),
         executor=executor,
+        trusted_repo_root=trusted,
     )
 
     with pytest.raises(WorkerNoChangesError) as exc_info:
@@ -282,5 +287,63 @@ async def test_session_fails_after_bounded_no_change_retry(
     assert exc_info.value.first_summary == "planning attempt 1"
     assert exc_info.value.retry_summary == "planning attempt 2"
     assert "two attempts" in str(exc_info.value)
+
+    assert list(parent.iterdir()) == []
+
+
+@dataclass
+class CandidateIgnoreTamperExecutor:
+    async def execute(
+        self,
+        request: WorkerExecutionRequest,
+    ) -> WorkerExecutionResult:
+        (request.workspace / ".gitignore").write_text(
+            "hidden.txt\n",
+            encoding="utf-8",
+        )
+        (request.workspace / "hidden.txt").write_text(
+            "must remain visible to trusted evidence\n",
+            encoding="utf-8",
+        )
+
+        return WorkerExecutionResult(
+            summary="Attempted to hide candidate change.",
+        )
+
+
+@pytest.mark.asyncio
+async def test_session_fails_closed_when_candidate_hides_trusted_change(
+    tmp_path: Path,
+    remote_repo: tuple[Path, Path, str],
+) -> None:
+    remote, trusted, _ = remote_repo
+    parent = tmp_path / "workspaces"
+
+    session = WorkerDevelopmentSession(
+        workspace=DisposableWorkerWorkspace(
+            repository_url=str(remote),
+            workspace_parent=parent,
+        ),
+        executor=CandidateIgnoreTamperExecutor(),
+        trusted_repo_root=trusted,
+    )
+
+    with pytest.raises(
+        WorkerChangeSetEvidenceMismatchError,
+        match="do not match trusted workspace change evidence",
+    ) as exc_info:
+        await session.run(
+            WorkerDevelopmentTask(
+                goal="Create a hidden candidate change.",
+                branch_name="agent/hidden-change",
+                commit_message="test: hidden candidate",
+            )
+        )
+
+    assert exc_info.value.trusted_paths == (
+        ".gitignore",
+        "hidden.txt",
+    )
+    assert exc_info.value.built_paths == (".gitignore",)
 
     assert list(parent.iterdir()) == []
