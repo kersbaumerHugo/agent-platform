@@ -56,6 +56,28 @@ class ToolRegistry:
         try:
             tool = self._tools[name]
         except KeyError as exc:
+            self._observer.record(
+                ObservationEvent(
+                    run_id=request.run_id,
+                    component=ObservationComponent.TOOL,
+                    event="tool.request.started",
+                    status=ObservationStatus.STARTED,
+                    tool_name=name,
+                )
+            )
+
+            self._observer.record(
+                ObservationEvent(
+                    run_id=request.run_id,
+                    component=ObservationComponent.TOOL,
+                    event="tool.request.failed",
+                    status=ObservationStatus.FAILED,
+                    tool_name=name,
+                    duration_seconds=0.0,
+                    error_type="KeyError",
+                )
+            )
+
             raise KeyError(f"Unknown tool: {name}") from exc
 
         started = perf_counter()

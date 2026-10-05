@@ -10,6 +10,7 @@ from agent_platform.application.tool_registry import (
 )
 from agent_platform.domain.observability import (
     ObservationEvent,
+    ObservationStatus,
 )
 from agent_platform.domain.tool import ToolRequest
 
@@ -100,3 +101,44 @@ async def test_registry_rejects_unknown_tool() -> None:
                 run_id=uuid4(),
             ),
         )
+
+
+@pytest.mark.asyncio
+async def test_registry_observability_on_unknown_tool() -> None:
+    """Test that unknown tool invocations are observed before raising KeyError."""
+    observer = RecordingObserver()
+    registry = ToolRegistry(
+        [],
+        observer,
+    )
+
+    run_id = uuid4()
+
+    with pytest.raises(KeyError, match="Unknown tool") as exc_info:
+        await registry.invoke(
+            "missing",
+            ToolRequest(
+                run_id=run_id,
+            ),
+        )
+
+    # Verify KeyError was raised
+    assert "Unknown tool: missing" in str(exc_info.value)
+
+    # Verify observation events were recorded
+    assert len(observer.events) == 2
+
+    # First event should be started
+    assert observer.events[0].event == "tool.request.started"
+    assert observer.events[0].status == ObservationStatus.STARTED
+    assert observer.events[0].tool_name == "missing"
+
+    # Second event should be failed
+    assert observer.events[1].event == "tool.request.failed"
+    assert observer.events[1].status == ObservationStatus.FAILED
+    assert observer.events[1].tool_name == "missing"
+    assert observer.events[1].error_type == "KeyError"
+
+    # Both events should have the same run_id
+    assert observer.events[0].run_id == run_id
+    assert observer.events[1].run_id == run_id
