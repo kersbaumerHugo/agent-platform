@@ -17,8 +17,8 @@ class RunStatus(StrEnum):
 
 
 class RunRequest(BaseModel):
-    agent_id: str = Field(min_length=1)
-    input: str = Field(min_length=1)
+    agent_id: str = Field(min_length=1, pattern=r"[^\s]")
+    input: str = Field(min_length=1, pattern=r"[^\s]")
 
 
 class RuntimeRequest(BaseModel):
