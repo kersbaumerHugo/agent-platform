@@ -5,7 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from agent_platform.trust.verification import VerificationOutcome
+from agent_platform.trust.verification import (
+    MAX_VERIFICATION_SUMMARY_CHARS,
+    VerificationOutcome,
+)
 from agent_platform.trust.verification_executor import (
     ProfileVerificationExecutor,
     SubprocessVerificationProcessRunner,
@@ -36,10 +39,14 @@ class SequenceRunner:
         return self._results.pop(0)
 
 
-def _exited(exit_code: int) -> VerificationProcessResult:
+def _exited(
+    exit_code: int,
+    output: str = "",
+) -> VerificationProcessResult:
     return VerificationProcessResult(
         outcome=VerificationProcessOutcome.EXITED,
         exit_code=exit_code,
+        output=output,
     )
 
 
@@ -66,7 +73,10 @@ async def test_profile_executor_preserves_complete_evidence_after_failure(
 ) -> None:
     profile = AuthoritativeVerificationProfile()
     results = [_exited(0) for _ in profile.steps]
-    results[4] = _exited(1)
+    results[4] = _exited(
+        1,
+        "AssertionError: expected started and failed events",
+    )
     runner = SequenceRunner(tuple(results))
     executor = ProfileVerificationExecutor(runner=runner)
 
@@ -80,7 +90,19 @@ async def test_profile_executor_preserves_complete_evidence_after_failure(
     assert len(runner.calls) == len(profile.steps)
     assert result.steps[4].check is VerificationCheck.TEST
     assert result.steps[4].outcome is VerificationOutcome.FAIL
-    assert result.steps[4].summary == "verification_step_failed"
+    assert result.steps[4].summary == ("AssertionError: expected started and failed events")
+
+
+def test_process_result_rejects_unbounded_output() -> None:
+    with pytest.raises(
+        ValueError,
+        match="output exceeds",
+    ):
+        VerificationProcessResult(
+            outcome=VerificationProcessOutcome.EXITED,
+            exit_code=1,
+            output="x" * (MAX_VERIFICATION_SUMMARY_CHARS + 1),
+        )
 
 
 @pytest.mark.asyncio

@@ -7,12 +7,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from agent_platform.trust.verification import (
+    MAX_VERIFICATION_SUMMARY_CHARS,
+)
 from agent_platform.trust.verification_executor import (
     VerificationProcessOutcome,
     VerificationProcessResult,
 )
 
 _IMAGE_REFERENCE_PATTERN = re.compile(r"^(?:.+@)?sha256:[0-9a-f]{64}$")
+_MAX_CAPTURE_BYTES = 64 * 1024
 
 
 class DockerVerificationError(RuntimeError):
@@ -100,8 +104,8 @@ class DockerCliVerificationLauncher:
             process = await asyncio.create_subprocess_exec(
                 *command,
                 stdin=asyncio.subprocess.DEVNULL,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
                 start_new_session=True,
             )
         except OSError:
@@ -109,6 +113,11 @@ class DockerCliVerificationLauncher:
                 outcome=VerificationProcessOutcome.ERROR,
                 exit_code=None,
             )
+
+        assert process.stdout is not None
+        reader_task = asyncio.create_task(
+            self._read_bounded_output(process.stdout),
+        )
 
         try:
             exit_code = await asyncio.wait_for(
@@ -118,25 +127,65 @@ class DockerCliVerificationLauncher:
         except TimeoutError:
             await self._force_remove(container_name)
             await self._finish_process(process)
+            output = await reader_task
+
             return VerificationProcessResult(
                 outcome=VerificationProcessOutcome.TIMEOUT,
                 exit_code=None,
+                output=output,
             )
         except asyncio.CancelledError:
             await self._force_remove(container_name)
             await self._finish_process(process)
+
+            if not reader_task.done():
+                reader_task.cancel()
+
+            try:
+                await reader_task
+            except asyncio.CancelledError:
+                pass
+
             raise
+
+        output = await reader_task
 
         if exit_code in {125, 126, 127}:
             return VerificationProcessResult(
                 outcome=VerificationProcessOutcome.ERROR,
                 exit_code=None,
+                output=output,
             )
 
         return VerificationProcessResult(
             outcome=VerificationProcessOutcome.EXITED,
             exit_code=exit_code,
+            output=output,
         )
+
+    @staticmethod
+    async def _read_bounded_output(
+        stream: asyncio.StreamReader,
+    ) -> str:
+        tail = bytearray()
+
+        while True:
+            chunk = await stream.read(4096)
+
+            if not chunk:
+                break
+
+            tail.extend(chunk)
+
+            if len(tail) > _MAX_CAPTURE_BYTES:
+                del tail[:-_MAX_CAPTURE_BYTES]
+
+        decoded = bytes(tail).decode(
+            "utf-8",
+            errors="replace",
+        )
+
+        return decoded[-MAX_VERIFICATION_SUMMARY_CHARS:]
 
     async def _finish_process(
         self,

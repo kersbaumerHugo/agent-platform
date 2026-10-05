@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Protocol
 
 from agent_platform.trust.verification import (
+    MAX_VERIFICATION_SUMMARY_CHARS,
     VerificationOutcome,
     VerificationResult,
     VerificationStepResult,
@@ -29,6 +30,11 @@ class VerificationProcessOutcome(StrEnum):
 class VerificationProcessResult:
     outcome: VerificationProcessOutcome
     exit_code: int | None
+    output: str = ""
+
+    def __post_init__(self) -> None:
+        if len(self.output) > MAX_VERIFICATION_SUMMARY_CHARS:
+            raise ValueError("Verification process output exceeds the summary limit.")
 
 
 class VerificationProcessRunner(Protocol):
@@ -221,7 +227,10 @@ class ProfileVerificationExecutor:
                 check=step.check,
                 outcome=VerificationOutcome.ERROR,
                 exit_code=None,
-                summary="verification_step_timeout",
+                summary=ProfileVerificationExecutor._failure_summary(
+                    process_result,
+                    "verification_step_timeout",
+                ),
             )
 
         if process_result.outcome is VerificationProcessOutcome.ERROR:
@@ -229,7 +238,10 @@ class ProfileVerificationExecutor:
                 check=step.check,
                 outcome=VerificationOutcome.ERROR,
                 exit_code=None,
-                summary="verification_step_execution_error",
+                summary=ProfileVerificationExecutor._failure_summary(
+                    process_result,
+                    "verification_step_execution_error",
+                ),
             )
 
         if process_result.exit_code == 0:
@@ -245,15 +257,31 @@ class ProfileVerificationExecutor:
                 check=step.check,
                 outcome=VerificationOutcome.ERROR,
                 exit_code=None,
-                summary="verification_step_missing_exit_code",
+                summary=ProfileVerificationExecutor._failure_summary(
+                    process_result,
+                    "verification_step_missing_exit_code",
+                ),
             )
 
         return VerificationStepResult(
             check=step.check,
             outcome=VerificationOutcome.FAIL,
             exit_code=process_result.exit_code,
-            summary="verification_step_failed",
+            summary=ProfileVerificationExecutor._failure_summary(
+                process_result,
+                "verification_step_failed",
+            ),
         )
+
+    @staticmethod
+    def _failure_summary(
+        process_result: VerificationProcessResult,
+        fallback: str,
+    ) -> str:
+        if process_result.output.strip():
+            return process_result.output
+
+        return fallback
 
     @staticmethod
     def _overall_outcome(
