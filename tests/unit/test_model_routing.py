@@ -43,3 +43,22 @@ def test_rejects_unknown_route() -> None:
         match="No model configured",
     ):
         policy.resolve("remote_strong")
+
+
+def test_rejects_duplicate_semantic_route_names() -> None:
+    with pytest.raises(
+        ValueError,
+        match="Model route names must be unique.",
+    ):
+        ModelRoutingPolicy(
+            routes=(
+                ModelRoute(
+                    route="local_small",
+                    model="local-small-model",
+                ),
+                ModelRoute(
+                    route="local_small",
+                    model="local-strong-model",
+                ),
+            )
+        )
