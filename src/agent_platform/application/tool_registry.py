@@ -53,11 +53,6 @@ class ToolRegistry:
         name: str,
         request: ToolRequest,
     ) -> ToolResult:
-        try:
-            tool = self._tools[name]
-        except KeyError as exc:
-            raise KeyError(f"Unknown tool: {name}") from exc
-
         started = perf_counter()
 
         with self._tracer.start_as_current_span("tool.invoke") as span:
@@ -81,6 +76,8 @@ class ToolRegistry:
             )
 
             try:
+                tool = self._tools[name]
+
                 result = await tool.invoke(request)
 
                 if result.run_id != request.run_id:
@@ -88,6 +85,34 @@ class ToolRegistry:
 
                 if result.tool_name != name:
                     raise RuntimeError("Tool returned a mismatched tool name.")
+
+            except KeyError:
+                duration = perf_counter() - started
+
+                span.set_attribute(
+                    "error.type",
+                    "KeyError",
+                )
+                span.set_status(
+                    Status(
+                        StatusCode.ERROR,
+                        "KeyError",
+                    )
+                )
+
+                self._observer.record(
+                    ObservationEvent(
+                        run_id=request.run_id,
+                        component=ObservationComponent.TOOL,
+                        event="tool.request.failed",
+                        status=ObservationStatus.FAILED,
+                        tool_name=name,
+                        duration_seconds=duration,
+                        error_type="KeyError",
+                    )
+                )
+
+                raise KeyError("Unknown tool") from None
 
             except Exception as exc:
                 duration = perf_counter() - started
