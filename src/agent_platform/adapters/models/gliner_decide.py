@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import import_module
 from time import perf_counter
 from typing import Any, Protocol
 
@@ -58,9 +59,16 @@ class GlinerDecisionModel:
         extractor: DecisionExtractor | None = None,
     ) -> None:
         if extractor is None:
-            from gliner2 import AutoExtractor
+            try:
+                gliner2 = import_module("gliner2")
+            except ModuleNotFoundError as exc:
+                raise RuntimeError(
+                    "GLiNER2 local support requires the optional 'gliner2[local]' dependency."
+                ) from exc
 
-            extractor = AutoExtractor.from_pretrained(
+            auto_extractor: Any = gliner2.AutoExtractor
+
+            extractor = auto_extractor.from_pretrained(
                 model_id,
                 map_location=device,
             )
