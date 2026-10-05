@@ -10,6 +10,8 @@ from agent_platform.application.supervised_coding import PreparedCodingTask
 from agent_platform.domain.coding import (
     CodingPublicationOutcome,
     CodingResult,
+    CodingSemanticReviewDecision,
+    CodingSemanticReviewResult,
     CodingTask,
     CodingVerificationOutcome,
 )
@@ -43,6 +45,15 @@ class CodingVerificationService(Protocol):
     ) -> VerifiedChangeSet: ...
 
 
+class CodingSemanticReviewer(Protocol):
+    async def review(
+        self,
+        *,
+        task: CodingTask,
+        verified: VerifiedChangeSet,
+    ) -> CodingSemanticReviewResult: ...
+
+
 class CodingRepairProducer(Protocol):
     async def repair(
         self,
@@ -69,6 +80,15 @@ class CodingTaskIdentityMismatchError(RuntimeError):
     pass
 
 
+class CodingSemanticReviewRejectedError(RuntimeError):
+    def __init__(
+        self,
+        result: CodingSemanticReviewResult,
+    ) -> None:
+        self.result = result
+        super().__init__("Semantic review rejected verified ChangeSet.")
+
+
 class CodingRepairBaseRevisionMismatchError(RuntimeError):
     pass
 
@@ -89,12 +109,14 @@ class SupervisedCodingPublicationService:
         *,
         preparation: CodingPreparationService,
         verification: CodingVerificationService,
+        reviewer: CodingSemanticReviewer,
         publisher: CodingVerifiedPublisher,
         repairer: CodingRepairProducer | None = None,
         tracer: Tracer | None = None,
     ) -> None:
         self._preparation = preparation
         self._verification = verification
+        self._reviewer = reviewer
         self._publisher = publisher
         self._repairer = repairer
         self._tracer = tracer or trace.get_tracer("agent_platform.coding")
@@ -180,6 +202,19 @@ class SupervisedCodingPublicationService:
                     "agent_platform.coding.verification.outcome",
                     verification_outcome.value,
                 )
+
+                semantic_review = await self._reviewer.review(
+                    task=task,
+                    verified=verified,
+                )
+
+                span.set_attribute(
+                    "agent_platform.coding.semantic_review.decision",
+                    semantic_review.decision.value,
+                )
+
+                if semantic_review.decision is CodingSemanticReviewDecision.REJECT:
+                    raise CodingSemanticReviewRejectedError(semantic_review)
 
                 publication = await self._publisher.publish(verified)
 

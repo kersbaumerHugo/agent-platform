@@ -9,6 +9,7 @@ from agent_platform.adapters.capabilities.coding import (
 from agent_platform.adapters.workers.supervised_coding import (
     WorkerCodingChangeProducer,
     WorkerCodingRepairProducer,
+    WorkerCodingSemanticReviewer,
 )
 from agent_platform.adapters.workers.trusted_sandbox import (
     TrustedSandboxWorkerExecutor,
@@ -124,6 +125,11 @@ def build_supervised_coding_capability(
         workspace_parent=worker_workspace_parent,
     )
 
+    review_materializer = DisposableChangeSetMaterializer(
+        trusted_repo_root=trusted_repository,
+        workspace_parent=worker_workspace_parent,
+    )
+
     verification = ChangeSetVerificationService(
         materializer=verification_materializer,
         verifier=TrustedVerificationClient(
@@ -143,6 +149,10 @@ def build_supervised_coding_capability(
     service = SupervisedCodingPublicationService(
         preparation=preparation,
         verification=verification,
+        reviewer=WorkerCodingSemanticReviewer(
+            materializer=review_materializer,
+            executor=sandbox_executor,
+        ),
         repairer=WorkerCodingRepairProducer(
             materializer=repair_materializer,
             executor=sandbox_executor,
