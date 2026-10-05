@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
 
+from agent_platform.trust.verification import (
+    MAX_VERIFICATION_SUMMARY_CHARS,
+)
 from agent_platform.trust.verification_docker import (
+    DockerCliVerificationLauncher,
     DockerVerificationConfig,
     DockerVerificationError,
     DockerVerificationProcessRunner,
@@ -53,6 +58,29 @@ def _config(tmp_path: Path) -> DockerVerificationConfig:
         image=PINNED_IMAGE,
         runtime_root=runtime_root,
     )
+
+
+@pytest.mark.asyncio
+async def test_cli_launcher_captures_bounded_combined_failure_output() -> None:
+    launcher = DockerCliVerificationLauncher(
+        docker_binary="/usr/bin/docker",
+        timeout_seconds=5.0,
+        terminate_grace_seconds=1.0,
+    )
+
+    result = await launcher.run(
+        command=(
+            sys.executable,
+            "-c",
+            ("import sys;print('x' * 10000);print('stderr-marker', file=sys.stderr);sys.exit(1)"),
+        ),
+        container_name="not-used",
+    )
+
+    assert result.outcome is VerificationProcessOutcome.EXITED
+    assert result.exit_code == 1
+    assert len(result.output) <= MAX_VERIFICATION_SUMMARY_CHARS
+    assert "stderr-marker" in result.output
 
 
 def test_config_requires_pinned_image(tmp_path: Path) -> None:
