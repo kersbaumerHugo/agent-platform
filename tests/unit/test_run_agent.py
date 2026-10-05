@@ -1,93 +1,159 @@
+from pathlib import Path
+
 import pytest
-from pydantic import ValidationError
 
-from agent_platform.domain.models import RunRequest
+from agent_platform.adapters.observability.prometheus import (
+    PrometheusObserver,
+)
+from agent_platform.adapters.run_history.sqlite import (
+    SQLiteRunHistoryStore,
+)
+from agent_platform.adapters.runtimes.fake import FakeRuntime
+from agent_platform.application.run_agent import RunAgent
+from agent_platform.domain.models import (
+    RunRequest,
+    RunStatus,
+    RuntimeRequest,
+)
+
+PLATFORM_REVISION = "a" * 40
+REPOSITORY_REVISION = "b" * 40
 
 
-class TestRunRequestValidation:
-    """Test RunRequest validation for whitespace rejection."""
+class FailingRuntime:
+    @property
+    def name(self) -> str:
+        return "failing"
 
-    def test_agent_id_whitespace_only_rejected(self):
-        """Reject agent_id that is whitespace-only."""
-        with pytest.raises(ValidationError):
-            RunRequest(agent_id="   ", input="test")
+    async def execute(
+        self,
+        request: RuntimeRequest,
+    ):
+        del request
+        raise RuntimeError("runtime boom")
 
-    def test_agent_id_tabs_and_newlines_rejected(self):
-        """Reject agent_id with tabs and newlines only."""
-        with pytest.raises(ValidationError):
-            RunRequest(agent_id="\t\n", input="test")
 
-    def test_agent_id_mixed_whitespace_rejected(self):
-        """Reject agent_id with mixed whitespace characters."""
-        with pytest.raises(ValidationError):
-            RunRequest(agent_id="   \t\n   ", input="test")
+@pytest.mark.asyncio
+async def test_run_agent_uses_runtime_contract() -> None:
+    service = RunAgent(
+        FakeRuntime(),
+        PrometheusObserver(),
+    )
 
-    def test_input_whitespace_only_rejected(self):
-        """Reject input that is whitespace-only."""
-        with pytest.raises(ValidationError):
-            RunRequest(agent_id="test-agent", input="   ")
+    result = await service.execute(
+        RunRequest(
+            agent_id="demo",
+            input="hello",
+        )
+    )
 
-    def test_input_tabs_and_newlines_rejected(self):
-        """Reject input with tabs and newlines only."""
-        with pytest.raises(ValidationError):
-            RunRequest(agent_id="test-agent", input="\t\n")
+    assert result.status == RunStatus.SUCCEEDED
+    assert result.run_id is not None
+    assert "[fake-runtime]" in (result.output or "")
 
-    def test_input_mixed_whitespace_rejected(self):
-        """Reject input with mixed whitespace characters."""
-        with pytest.raises(ValidationError):
-            RunRequest(agent_id="test-agent", input="   \t\n   ")
 
-    def test_agent_id_valid_nonblank_accepted(self):
-        """Accept valid nonblank agent_id."""
-        request = RunRequest(agent_id="test-agent", input="test")
-        assert request.agent_id == "test-agent"
+@pytest.mark.asyncio
+async def test_run_agent_persists_successful_run_history(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteRunHistoryStore(tmp_path / "run-history.sqlite3")
+    service = RunAgent(
+        FakeRuntime(),
+        PrometheusObserver(),
+        run_history_store=store,
+        platform_revision=PLATFORM_REVISION,
+        repository_revision=REPOSITORY_REVISION,
+    )
 
-    def test_agent_id_with_leading_space_accepted(self):
-        """Accept agent_id with leading space."""
-        request = RunRequest(agent_id=" test-agent", input="test")
-        assert request.agent_id == " test-agent"
+    result = await service.execute(
+        RunRequest(
+            agent_id="developer-agent",
+            input="hello history",
+        )
+    )
 
-    def test_agent_id_with_trailing_space_accepted(self):
-        """Accept agent_id with trailing space."""
-        request = RunRequest(agent_id="test-agent ", input="test")
-        assert request.agent_id == "test-agent "
+    persisted = store.get(result.run_id)
 
-    def test_agent_id_with_padded_spaces_accepted(self):
-        """Accept agent_id with padded spaces."""
-        request = RunRequest(agent_id="  test-agent  ", input="test")
-        assert request.agent_id == "  test-agent  "
+    assert persisted is not None
+    assert persisted.status == RunStatus.SUCCEEDED
+    assert persisted.agent_id == "developer-agent"
+    assert persisted.runtime == "fake"
+    assert persisted.input == "hello history"
+    assert persisted.output == result.output
+    assert persisted.platform_revision == PLATFORM_REVISION
+    assert persisted.repository_revision == REPOSITORY_REVISION
+    assert persisted.finished_at is not None
+    assert persisted.duration_seconds is not None
 
-    def test_input_valid_nonblank_accepted(self):
-        """Accept valid nonblank input."""
-        request = RunRequest(agent_id="test-agent", input="test")
-        assert request.input == "test"
 
-    def test_input_with_leading_space_accepted(self):
-        """Accept input with leading space."""
-        request = RunRequest(agent_id="test-agent", input=" test")
-        assert request.input == " test"
+@pytest.mark.asyncio
+async def test_run_agent_persists_failed_run_history(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteRunHistoryStore(tmp_path / "run-history.sqlite3")
+    service = RunAgent(
+        FailingRuntime(),
+        PrometheusObserver(),
+        run_history_store=store,
+        platform_revision=PLATFORM_REVISION,
+    )
 
-    def test_input_with_trailing_space_accepted(self):
-        """Accept input with trailing space."""
-        request = RunRequest(agent_id="test-agent", input="test ")
-        assert request.input == "test "
+    result = await service.execute(
+        RunRequest(
+            agent_id="developer-agent",
+            input="fail",
+        )
+    )
 
-    def test_input_with_padded_spaces_accepted(self):
-        """Accept input with padded spaces."""
-        request = RunRequest(agent_id="test-agent", input="  test  ")
-        assert request.input == "  test  "
+    persisted = store.get(result.run_id)
 
-    def test_input_with_newline_accepted(self):
-        """Accept input containing newline."""
-        request = RunRequest(agent_id="test-agent", input="test\nmore")
-        assert request.input == "test\nmore"
+    assert result.status == RunStatus.FAILED
+    assert persisted is not None
+    assert persisted.status == RunStatus.FAILED
+    assert persisted.error == "runtime boom"
+    assert persisted.repository_revision is None
 
-    def test_empty_agent_id_rejected(self):
-        """Reject empty agent_id (already handled by min_length=1)."""
-        with pytest.raises(ValidationError):
-            RunRequest(agent_id="", input="test")
 
-    def test_empty_input_rejected(self):
-        """Reject empty input (already handled by min_length=1)."""
-        with pytest.raises(ValidationError):
-            RunRequest(agent_id="test-agent", input="")
+def test_run_history_requires_platform_revision(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteRunHistoryStore(tmp_path / "run-history.sqlite3")
+
+    with pytest.raises(
+        ValueError,
+        match="platform_revision",
+    ):
+        RunAgent(
+            FakeRuntime(),
+            PrometheusObserver(),
+            run_history_store=store,
+        )
+
+
+def test_run_history_rejects_abbreviated_revision(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteRunHistoryStore(tmp_path / "run-history.sqlite3")
+
+    with pytest.raises(
+        ValueError,
+        match="platform_revision",
+    ):
+        RunAgent(
+            FakeRuntime(),
+            PrometheusObserver(),
+            run_history_store=store,
+            platform_revision="abc123",
+        )
+
+
+def test_revisions_without_history_store_are_rejected() -> None:
+    with pytest.raises(
+        ValueError,
+        match="require a configured run history store",
+    ):
+        RunAgent(
+            FakeRuntime(),
+            PrometheusObserver(),
+            platform_revision=PLATFORM_REVISION,
+        )
