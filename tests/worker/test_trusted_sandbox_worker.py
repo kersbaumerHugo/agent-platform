@@ -11,6 +11,7 @@ from agent_platform.adapters.workers.trusted_sandbox import (
     TrustedSandboxWorkerExecutor,
 )
 from agent_platform.trust.sandbox_execution import (
+    SandboxExecutionMode,
     SandboxExecutionResponse,
     SandboxExecutionStatus,
     TrustedWorkspaceResolver,
@@ -39,7 +40,7 @@ async def test_client_and_server_cross_narrow_socket_boundary(
     workspace = root / "worker-example"
     workspace.mkdir()
 
-    calls: list[tuple[UUID, str, Path]] = []
+    calls: list[tuple[UUID, SandboxExecutionMode, str, Path]] = []
 
     class Backend:
         async def execute(
@@ -51,6 +52,7 @@ async def test_client_and_server_cross_narrow_socket_boundary(
             calls.append(
                 (
                     request.execution_id,
+                    request.mode,
                     request.goal,
                     workspace,
                 )
@@ -76,6 +78,7 @@ async def test_client_and_server_cross_narrow_socket_boundary(
         client = TrustedSandboxWorkerExecutor(
             socket_path=socket_path,
             workspace_root=root,
+            mode=SandboxExecutionMode.SEMANTIC_REVIEW,
         )
 
         result = await client.execute(
@@ -92,6 +95,7 @@ async def test_client_and_server_cross_narrow_socket_boundary(
     assert calls == [
         (
             EXECUTION_ID,
+            SandboxExecutionMode.SEMANTIC_REVIEW,
             "Fix the test.",
             workspace.resolve(),
         )

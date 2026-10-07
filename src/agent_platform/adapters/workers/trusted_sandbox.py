@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 
 from agent_platform.trust.sandbox_execution import (
+    SandboxExecutionMode,
     SandboxExecutionRequest,
     SandboxExecutionResponseError,
     SandboxExecutionStatus,
@@ -30,6 +31,7 @@ class TrustedSandboxWorkerExecutor:
         *,
         socket_path: Path,
         workspace_root: Path,
+        mode: SandboxExecutionMode = SandboxExecutionMode.IMPLEMENTATION,
         max_response_bytes: int = 64 * 1024,
     ) -> None:
         if max_response_bytes <= 0:
@@ -37,6 +39,7 @@ class TrustedSandboxWorkerExecutor:
 
         self._socket_path = socket_path
         self._workspace_resolver = TrustedWorkspaceResolver(workspace_root=workspace_root)
+        self._mode = mode
         self._max_response_bytes = max_response_bytes
 
     async def execute(
@@ -49,6 +52,7 @@ class TrustedSandboxWorkerExecutor:
             execution_id=request.execution_id,
             workspace_name=workspace_name,
             goal=request.goal,
+            mode=self._mode,
         )
 
         try:

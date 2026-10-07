@@ -23,6 +23,9 @@ from agent_platform.application.supervised_coding_publication import (
 from agent_platform.trust.change_set_materializer import (
     DisposableChangeSetMaterializer,
 )
+from agent_platform.trust.sandbox_execution import (
+    SandboxExecutionMode,
+)
 from agent_platform.trust.verification_binding import (
     ChangeSetVerificationService,
 )
@@ -99,6 +102,12 @@ def build_supervised_coding_capability(
         workspace_root=worker_workspace_parent,
     )
 
+    semantic_review_executor = TrustedSandboxWorkerExecutor(
+        socket_path=sandbox_socket,
+        workspace_root=worker_workspace_parent,
+        mode=SandboxExecutionMode.SEMANTIC_REVIEW,
+    )
+
     session = WorkerDevelopmentSession(
         workspace=DisposableWorkerWorkspace(
             repository_url=repository_url,
@@ -151,7 +160,7 @@ def build_supervised_coding_capability(
         verification=verification,
         reviewer=WorkerCodingSemanticReviewer(
             materializer=review_materializer,
-            executor=sandbox_executor,
+            executor=semantic_review_executor,
         ),
         repairer=WorkerCodingRepairProducer(
             materializer=repair_materializer,

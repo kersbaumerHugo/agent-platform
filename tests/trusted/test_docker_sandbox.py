@@ -13,6 +13,7 @@ from agent_platform.trust.docker_sandbox import (
     SubprocessDockerExecutionRunner,
 )
 from agent_platform.trust.sandbox_execution import (
+    SandboxExecutionMode,
     SandboxExecutionRequest,
 )
 
@@ -185,6 +186,10 @@ async def test_backend_builds_fixed_hardened_command(
     assert any("dst=/run/model-gateway.sock,readonly" in mount for mount in mounts)
     assert any(("dst=/run/diagnostic-verifier.sock,readonly") in mount for mount in mounts)
 
+    assert contains_all(
+        command,
+        ("--mode", "implementation"),
+    )
     assert execution.stdin == (b"Fix the requested test.")
     assert execution.container_name == ("agent-platform-coding-2d4cf0d559f04cd59d46612b35f9598d")
 
@@ -352,3 +357,39 @@ def test_docker_runner_forwards_only_dsh_lifecycle_stderr(
 
     assert "ordinary stderr" not in captured.err
     assert "secret worker output" not in captured.err
+
+
+def test_backend_passes_semantic_review_mode_to_fixed_process(
+    tmp_path: Path,
+) -> None:
+    runtime_root = tmp_path / "runtime-semantic"
+    runtime_root.mkdir()
+
+    workspace = tmp_path / "workspace-semantic"
+    workspace.mkdir()
+
+    backend = DockerSandboxBackend(
+        config=build_config(runtime_root),
+        runner=RecordingRunner(),
+    )
+
+    semantic_request = SandboxExecutionRequest(
+        execution_id=EXECUTION_ID,
+        workspace_name="worker-example",
+        goal="Review only.",
+        mode=SandboxExecutionMode.SEMANTIC_REVIEW,
+    )
+
+    command = backend._build_command(
+        request=semantic_request,
+        workspace=workspace,
+        socket_path=runtime_root / "gw.sock",
+        diagnostic_socket_path=runtime_root / "dv.sock",
+        uid=1000,
+        gid=1000,
+    )
+
+    assert contains_all(
+        command,
+        ("--mode", "semantic_review"),
+    )

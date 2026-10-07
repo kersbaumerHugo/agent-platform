@@ -26,6 +26,11 @@ class SandboxExecutionStatus(StrEnum):
     ERROR = "error"
 
 
+class SandboxExecutionMode(StrEnum):
+    IMPLEMENTATION = "implementation"
+    SEMANTIC_REVIEW = "semantic_review"
+
+
 MAX_SANDBOX_SUMMARY_CHARS = 16 * 1024
 
 _WORKSPACE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -36,6 +41,7 @@ class SandboxExecutionRequest:
     execution_id: UUID
     workspace_name: str
     goal: str
+    mode: SandboxExecutionMode = SandboxExecutionMode.IMPLEMENTATION
 
     def __post_init__(self) -> None:
         workspace_name = self.workspace_name.strip()
@@ -89,10 +95,11 @@ def serialize_sandbox_execution_request(
     request: SandboxExecutionRequest,
 ) -> str:
     payload = {
-        "version": 1,
+        "version": 2,
         "execution_id": str(request.execution_id),
         "workspace_name": request.workspace_name,
         "goal": request.goal,
+        "mode": request.mode.value,
     }
 
     return json.dumps(
@@ -118,6 +125,7 @@ def deserialize_sandbox_execution_request(
         "execution_id",
         "workspace_name",
         "goal",
+        "mode",
     }
 
     if set(payload) != expected_keys:
@@ -125,7 +133,7 @@ def deserialize_sandbox_execution_request(
             "Sandbox execution request contains missing or unexpected fields."
         )
 
-    if payload["version"] != 1:
+    if payload["version"] != 2:
         raise SandboxExecutionRequestError("Unsupported sandbox execution request version.")
 
     execution_id_raw = _require_request_string(
@@ -140,6 +148,15 @@ def deserialize_sandbox_execution_request(
         payload["goal"],
         "goal",
     )
+    mode_raw = _require_request_string(
+        payload["mode"],
+        "mode",
+    )
+
+    try:
+        mode = SandboxExecutionMode(mode_raw)
+    except ValueError as exc:
+        raise SandboxExecutionRequestError("Unsupported sandbox execution mode.") from exc
 
     try:
         execution_id = UUID(execution_id_raw)
@@ -151,6 +168,7 @@ def deserialize_sandbox_execution_request(
             execution_id=execution_id,
             workspace_name=workspace_name,
             goal=goal,
+            mode=mode,
         )
     except ValueError as exc:
         raise SandboxExecutionRequestError(str(exc)) from exc

@@ -9,6 +9,9 @@ from functools import partial
 from pathlib import Path
 
 from agent_platform.adapters.workers.dsh import DshWorkerExecutor
+from agent_platform.trust.sandbox_execution import (
+    SandboxExecutionMode,
+)
 from agent_platform.worker.dsh_lifecycle import lifecycle_observer
 from agent_platform.worker.execution_budget import (
     ModelCallBudgetExceededError,
@@ -433,11 +436,14 @@ async def _run(args: argparse.Namespace) -> int:
         "DSH_CONTEXT_WINDOW": str(args.context_window),
     }
 
+    execution_mode = SandboxExecutionMode(args.mode)
+
     executor = DshWorkerExecutor(
         dsh_home=_DSH_HOME,
         provider=args.provider,
         model=args.model,
         profile=args.profile,
+        execution_mode=execution_mode,
         request_timeout_seconds=(args.request_timeout_seconds),
         patches=(_DSH_CONTEXT_PATCH,),
         env=runtime_env,
@@ -452,12 +458,20 @@ async def _run(args: argparse.Namespace) -> int:
     )
 
     try:
-        result = await _execute_with_bounded_self_repair(
-            executor=phase_executor,
-            goal=goal,
-            workspace=Path.cwd(),
-            release_runtime=executor.close,
-        )
+        if execution_mode is SandboxExecutionMode.SEMANTIC_REVIEW:
+            result = await phase_executor.execute(
+                WorkerExecutionRequest(
+                    goal=goal,
+                    workspace=Path.cwd(),
+                )
+            )
+        else:
+            result = await _execute_with_bounded_self_repair(
+                executor=phase_executor,
+                goal=goal,
+                workspace=Path.cwd(),
+                release_runtime=executor.close,
+            )
     finally:
         await executor.close()
 
@@ -472,6 +486,12 @@ async def _run(args: argparse.Namespace) -> int:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run one coding Worker inside the trusted sandbox."
+    )
+
+    parser.add_argument(
+        "--mode",
+        choices=tuple(mode.value for mode in SandboxExecutionMode),
+        default=SandboxExecutionMode.IMPLEMENTATION.value,
     )
 
     parser.add_argument(
