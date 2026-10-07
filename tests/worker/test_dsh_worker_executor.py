@@ -237,3 +237,36 @@ def test_dsh_worker_prompt_requires_progressive_execution() -> None:
     assert "against every acceptance criterion" in prompt
 
     assert "Modify exactly one test file and add exactly two assertions." in prompt
+
+
+@pytest.mark.asyncio
+async def test_semantic_review_uses_exact_review_prompt(
+    tmp_path: Path,
+) -> None:
+    from agent_platform.trust.sandbox_execution import (
+        SandboxExecutionMode,
+    )
+
+    runtime = FakeRuntime()
+
+    executor = DshWorkerExecutor(
+        dsh_home=tmp_path / "dsh",
+        provider="test-provider",
+        model="test-model",
+        runtime_factory=lambda workspace: runtime,
+        execution_mode=SandboxExecutionMode.SEMANTIC_REVIEW,
+    )
+
+    prompt = 'Review only. Return exactly {"decision":"approve","reasons":[]}'
+
+    await executor.execute(
+        WorkerExecutionRequest(
+            goal=prompt,
+            workspace=tmp_path,
+        )
+    )
+
+    assert len(runtime.requests) == 1
+    assert runtime.requests[0].input == prompt
+    assert "implementation Worker" not in runtime.requests[0].input
+    assert "IMPLEMENT FROM EVIDENCE" not in runtime.requests[0].input

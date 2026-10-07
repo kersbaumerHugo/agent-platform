@@ -432,6 +432,8 @@ class DockerSandboxBackend:
             "PYTHONDONTWRITEBYTECODE=1",
             self._config.image,
             *self._config.command,
+            "--mode",
+            request.mode.value,
         )
 
     def _gateway_socket_path(

@@ -11,6 +11,9 @@ from agent_platform.adapters.runtimes.dsh import (
 )
 from agent_platform.contracts.runtime import RuntimeContract
 from agent_platform.domain.models import RuntimeRequest
+from agent_platform.trust.sandbox_execution import (
+    SandboxExecutionMode,
+)
 from agent_platform.worker.session import (
     WorkerExecutionRequest,
     WorkerExecutionResult,
@@ -34,6 +37,7 @@ class DshWorkerExecutor:
         env: Mapping[str, str] | None = None,
         runtime_factory: RuntimeFactory | None = None,
         notification_callback: DSHNotificationCallback | None = None,
+        execution_mode: SandboxExecutionMode = SandboxExecutionMode.IMPLEMENTATION,
     ) -> None:
         if not provider.strip():
             raise ValueError("provider must not be empty.")
@@ -50,6 +54,7 @@ class DshWorkerExecutor:
         self._env = dict(env or {})
         self._runtime_factory = runtime_factory
         self._notification_callback = notification_callback
+        self._execution_mode = execution_mode
         self._runtime: RuntimeContract | None = None
         self._runtime_workspace: Path | None = None
 
@@ -69,7 +74,10 @@ class DshWorkerExecutor:
                 "DshWorkerExecutor cannot change workspace while its runtime is open."
             )
 
-        prompt = self._build_prompt(request.goal)
+        prompt = self._build_prompt(
+            request.goal,
+            mode=self._execution_mode,
+        )
 
         result = await runtime.execute(
             RuntimeRequest(
@@ -119,7 +127,12 @@ class DshWorkerExecutor:
     @staticmethod
     def _build_prompt(
         goal: str,
+        *,
+        mode: SandboxExecutionMode = SandboxExecutionMode.IMPLEMENTATION,
     ) -> str:
+        if mode is SandboxExecutionMode.SEMANTIC_REVIEW:
+            return goal.strip()
+
         return (
             "You are the implementation Worker for the Agent Platform.\n\n"
             "Goal:\n"

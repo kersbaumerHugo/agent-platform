@@ -7,6 +7,7 @@ from uuid import UUID
 import pytest
 
 from agent_platform.trust.sandbox_execution import (
+    SandboxExecutionMode,
     SandboxExecutionRequest,
     SandboxExecutionRequestError,
     TrustedWorkspaceError,
@@ -62,7 +63,7 @@ def test_request_rejects_authority_bearing_fields(
 
 def test_request_rejects_invalid_protocol_version() -> None:
     payload = json.loads(serialize_sandbox_execution_request(example_request()))
-    payload["version"] = 2
+    payload["version"] = 3
 
     with pytest.raises(
         SandboxExecutionRequestError,
@@ -224,3 +225,30 @@ def test_resolver_rejects_symlink_workspace_root(
         TrustedWorkspaceResolver(
             workspace_root=linked_root,
         )
+
+
+def test_request_preserves_semantic_review_mode() -> None:
+    request = SandboxExecutionRequest(
+        execution_id=EXECUTION_ID,
+        workspace_name="worker-example",
+        goal="Review the candidate.",
+        mode=SandboxExecutionMode.SEMANTIC_REVIEW,
+    )
+
+    encoded = serialize_sandbox_execution_request(request)
+    payload = json.loads(encoded)
+
+    assert payload["version"] == 2
+    assert payload["mode"] == "semantic_review"
+    assert deserialize_sandbox_execution_request(encoded) == request
+
+
+def test_request_rejects_unknown_execution_mode() -> None:
+    payload = json.loads(serialize_sandbox_execution_request(example_request()))
+    payload["mode"] = "arbitrary-authority"
+
+    with pytest.raises(
+        SandboxExecutionRequestError,
+        match="Unsupported sandbox execution mode",
+    ):
+        deserialize_sandbox_execution_request(json.dumps(payload))
