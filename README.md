@@ -10,6 +10,29 @@ The platform is designed so runtimes, model providers and capability protocols r
 
 **First time here?** Read the [five-minute technical review guide](docs/reviewer-guide.md) for a current architecture map, verified examples, limitations and open questions. For implementation detail, see [architecture](docs/architecture.md), [ADRs](docs/adr) and [evidence](docs/evidence).
 
+## Current state: implementation and evidence
+
+The central vertical slice is **supervised repository development**: the agent
+can inspect a repository, propose code changes, pass a separate verifier and
+open a PR for a human to merge. M15/M15.6 record live examples. More recent
+Worker self-verification, bounded verification-repair and semantic review
+exist in source and tests, but **do not yet have a new consolidated live
+end-to-end acceptance report**.
+
+For an external review, prefer these current, evidence-separated references:
+
+- [Architecture as built](docs/architecture-as-built.md) — actual compositions,
+  trust zones and execution boundaries.
+- [Capability and evidence matrix](docs/capability-status.md) — implemented,
+  tested, historically live-validated, experimental and deferred.
+- [Post-M15 engineering changes](docs/evidence/post-m15-engineering-changes.md)
+  — the H0C/H0D implementation history and gaps still to measure.
+- [Five-minute review guide](docs/reviewer-guide.md) — how to critique the
+  platform without confusing a planned design with proven behavior.
+
+**Documentation snapshot:** 2026-10-26. Last application-code commit reviewed:
+`2cefa5c` (2026-10-07); later documentation-only update: `7279667b`.
+
 ## Current status
 
 The platform currently includes:
@@ -211,7 +234,7 @@ export AGENT_PLATFORM_RUNTIME=tool-calling
 export MODEL_PROVIDER=local
 export LOCAL_MODEL_BASE_URL=http://192.168.10.40:8080/v1
 export LOCAL_MODEL_NAME=qwen3.5-9b-local
-export LOCAL_MODEL_API_KEY=<secret>
+export LOCAL_MODEL_API_KEY="replace-with-your-token"
 
 export AGENT_PLATFORM_REPOSITORY_PATH="$PWD"
 export AGENT_PLATFORM_REPOWISE_COMMAND="$HOME/.local/bin/repowise"
@@ -349,6 +372,10 @@ semantic-review round trip.
 
 See `src/agent_platform/application/supervised_coding_publication.py`,
 `src/agent_platform/adapters/workers/supervised_coding.py` and their unit tests.
+For exact status and evidence boundaries, consult the
+[capability matrix](docs/capability-status.md). The two authoritative
+verification repair attempts are separate from the Worker's one bounded
+self-repair and the runtime's two tool-call rounds.
 
 ## Current limitations and next steps
 
@@ -374,4 +401,4 @@ The platform enables supervised coding through a trusted development boundary:
 - **Authoritative verification** - proposed changes are materialized and verified through a platform-owned trusted verifier before publication;
 - **Trusted pull-request publication** - verified changes are published through platform-managed CI/CD paths.
 
-This approach ensures that agent actions remain within a well-defined security envelope while maintaining developer control.
+These mechanisms are intended to preserve separate verification, publication and human merge authority. They are not a general security guarantee; see the threat boundaries and missing live validation in the architecture and capability matrix.
