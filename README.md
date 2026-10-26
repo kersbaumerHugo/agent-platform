@@ -6,6 +6,10 @@ A runtime-agnostic platform for executing, observing and evolving AI agents thro
 
 The platform is designed so runtimes, model providers and capability protocols remain replaceable.
 
+**Maturity:** experimental, homelab-validated engineering project—not a production-ready multi-tenant agent service. Claims below refer to repository implementation and recorded experiments; they do not imply ongoing availability of the author's homelab.
+
+**First time here?** Read the [five-minute technical review guide](docs/reviewer-guide.md) for a current architecture map, verified examples, limitations and open questions. For implementation detail, see [architecture](docs/architecture.md), [ADRs](docs/adr) and [evidence](docs/evidence).
+
 ## Current status
 
 The platform currently includes:
@@ -25,7 +29,7 @@ The platform currently includes:
 - structured observability;
 - persistent systemd-based deployment;
 - a trusted self-development boundary;
-- supervised autonomous Worker execution;
+- supervised Worker execution with bounded verification-repair attempts and a semantic-review gate in the current code;
 - a configuration-driven tool-calling runtime;
 - RepoWise-backed repository inspection through typed capabilities.
 
@@ -194,8 +198,10 @@ Repository inspection preserves provider-neutral evidence including:
 - indexed revision;
 - stale state.
 
-The live local smoke was validated against the homelab OpenAI-compatible
-inference endpoint backed by `llama-server` and the local NVIDIA GPU.
+The recorded local smoke was validated against the author's homelab
+OpenAI-compatible inference endpoint backed by `llama-server` and a local NVIDIA GPU.
+The following private-network addresses and model names are **illustrative homelab
+configuration**, not publicly accessible endpoints.
 
 Example runtime configuration:
 
@@ -235,10 +241,10 @@ curl -sS \
 The accepted V1 composition remains intentionally bounded:
 
 ```text
-two model tool-call rounds
+maximum of two model tool-call rounds
 explicit capability grants
 no dynamic RBAC
-no autonomous tool loop
+no unbounded autonomous tool loop
 no distributed runtime state
 no source-code dump required for repository structure inspection
 ```
@@ -331,10 +337,33 @@ See `docs/evidence/m14-usable-agent-runtime-results.md`.
 
 See `docs/evidence/m15-trusted-developer-agent-results.md`.
 
-## Next steps
+## Post-M15 implementation (current code)
 
-Build on the usable V1 runtime without widening platform abstractions unless new
-evidence justifies it.
+The current source also includes a **bounded verification-repair loop** (at most two
+repair attempts after a verification rejection) and a **semantic review gate**
+between authoritative verification and publication. Rejected semantic reviews
+prevent publication. These are code-level capabilities covered by dedicated
+tests; the M15 live self-development evidence predates the latest semantic-review
+change. Do not read that historical smoke as proof of a newly completed live
+semantic-review round trip.
+
+See `src/agent_platform/application/supervised_coding_publication.py`,
+`src/agent_platform/adapters/workers/supervised_coding.py` and their unit tests.
+
+## Current limitations and next steps
+
+- The default `AGENT_PLATFORM_RUNTIME` is `fake` unless an operator selects
+  `tool-calling` or `dsh` and supplies the corresponding dependencies.
+- The real tool-calling runtime deliberately caps execution at two tool-call rounds.
+- Work context uses an in-process run-scoped binding; this is not distributed execution.
+- The MCP interface is intended for trusted/local networks, not public exposure.
+- Model-provider selection is configuration-driven; automatic cross-provider failover
+  and production-grade multi-tenant controls are not established.
+- End-to-end local inference and supervised coding can be slow; performance is a
+  known review target, not an assumed solved problem.
+
+See [known limits and review questions](docs/reviewer-guide.md#risks-limitations-and-review-questions)
+before proposing more platform abstractions.
 
 ## Trusted Developer Agent
 
