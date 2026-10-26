@@ -12,6 +12,17 @@ Runtimes, model providers, tools, deployment backends and memory backends remain
 
 ## Current architecture
 
+The diagram below describes the original DSH + MCP capability flow, **not the only
+available execution path**. The configurable API composition also supports
+`fake`, `dsh` and `tool-calling` runtimes
+(`src/agent_platform/api/composition.py`). With no
+`AGENT_PLATFORM_RUNTIME` configured, the default remains `fake`.
+
+For the separately validated repository-aware ToolCallingRuntime, see
+`docs/evidence/m14-usable-agent-runtime-results.md`. For the supervised
+developer-agent production path, see
+`docs/evidence/m15-trusted-developer-agent-results.md`.
+
 ```text
                      +----------------------+
                      |      DSH Runtime     |
@@ -131,9 +142,16 @@ WorkRequest
 This pipeline has been validated independently through Eval-as-Code and an
 end-to-end deterministic smoke.
 
-The current default Work execution path does **not yet** invoke this preparation
-pipeline before `RunAgent`. Wiring the accepted M10 subsystem into real WorkStep
-execution is the next candidate milestone.
+**Updated after M11:** context preparation is integrated into real `/work`
+execution when explicit `ContextRef` values are supplied and context preparation
+is configured. `WorkOrchestrator` prepares each step, passes the result to
+`RunAgent`, and the Model Gateway resolves the run-scoped context for injection.
+A request needing context fails closed if preparation is unavailable. The
+M11 deterministic and real DSH smokes (OpenRouter and local backend) provide
+the implementation evidence.
+
+See `src/agent_platform/application/work_orchestrator.py` and
+`docs/evidence/m11-context-aware-work-execution-results.md`.
 
 ## Core contracts
 
@@ -238,7 +256,8 @@ OpenRouter         Local OpenAI Adapter
 
 Provider selection remains intentionally minimal and configuration-driven.
 
-Routing, fallback and provider arbitration are not part of the current baseline.
+Automatic cross-provider failover, production routing arbitration and budget
+management are not established by the current baseline.
 
 ## Agentic tool flow
 
@@ -330,9 +349,10 @@ pipeline downstream from explicit context selection. Retrieved/provider content
 is treated as reference data and is never promoted into a new system message by
 structure.
 
-The remaining integration gap is operational: the default WorkOrchestrator still
-passes only `agent_id` and step input into `RunAgent`, so M10 preparation is not
-yet part of the real `/work` execution path.
+The M11 integration closes the former Work-to-Run gap. When context is requested,
+the orchestrator prepares it before `RunAgent`, correlates trace evidence with
+each step and uses a process-local binding keyed by `run_id`. The binding is
+released on completion/failure; it is not a distributed context store.
 
 ## Context preparation and injection
 
@@ -422,6 +442,12 @@ Deployment infrastructure remains subordinate to platform requirements and is no
 ## Trusted self-development boundary
 
 Self-development is separated into untrusted development and trusted publication.
+
+The current coding publication service adds an optional bounded repair phase
+after verification rejection (at most two repair attempts), followed by a
+semantic review of the verified ChangeSet before publication. Semantic rejection
+halts publication. A passing verifier and reviewer do **not** grant the Worker
+merge authority or prove general safety against all adversarial inputs.
 
 ```text
 Work Item
@@ -629,6 +655,19 @@ docs/evidence/artifacts/m10-context-preparation-v0.json
 docs/evidence/artifacts/m10-context-preparation-smoke-v0.json
 ```
 
+## Validation since M10
+
+- **M11:** context-aware `/work` execution, including real DSH smokes with
+  OpenRouter and a local backend; see
+  `docs/evidence/m11-context-aware-work-execution-results.md`.
+- **M14:** real ToolCallingRuntime + RepoWise-backed repository inspection;
+  see `docs/evidence/m14-usable-agent-runtime-results.md`.
+- **M15 / M15.6:** supervised coding, authoritative verification, pull-request
+  publication with human merge, and a bounded two-round model/tool loop; see
+  `docs/evidence/m15-trusted-developer-agent-results.md`.
+- **After M15:** source includes verification repair and semantic-review gating.
+  These code paths are not the same as the previously recorded live M15 smoke.
+
 ## Current limitations
 
 - No cross-process traceparent propagation.
@@ -638,13 +677,13 @@ docs/evidence/artifacts/m10-context-preparation-smoke-v0.json
 - Provider routing/fallback is intentionally minimal.
 - Semantic retrieval is not justified by current evidence.
 - Automatic memory extraction is not implemented.
-- The accepted M10 context-preparation/injection pipeline is not yet wired
-  into the default `/work` execution path.
-- The default FastAPI `/runs` and `/work` composition still instantiates
-  `FakeRuntime`; the real DSH Runtime Adapter exists but is not yet the default
-  Work execution composition.
-- ContextPreparationTrace is not yet correlated with Work/Run lifecycle evidence
-  in the live execution path.
+- Without `AGENT_PLATFORM_RUNTIME`, composition still defaults to `FakeRuntime`;
+  real execution requires explicit `tool-calling` or `dsh` configuration.
+- M11 context binding is process-local; a split API/Gateway deployment needs a
+  new design and validation before it can resolve prepared context reliably.
+- A historical live M15 self-development path is recorded; the later bounded
+  verification-repair and semantic-review changes have tests but should be
+  live-validated separately before claiming production acceptance.
 - Dedicated retrieval-quality metrics are not yet implemented.
 - Persistent SQLite file creation permissions need deployment hardening so restrictive mode is automatic.
 
