@@ -6,6 +6,13 @@
 > available managed service. **Implementation, test coverage and live evidence
 > are different claims.**
 
+For the complete current implementation inventory, see
+[architecture as built](architecture-as-built.md),
+[capability status](capability-status.md), and
+[post-M15 engineering changes](evidence/post-m15-engineering-changes.md).
+The referenced 2026-10-07 commit is the latest **application-code** snapshot
+reviewed; the 2026-10-26 merge `7279667b` updated documentation only.
+
 ## Why this exists (two minutes)
 
 I am exploring which responsibilities should belong to an agent *platform*,
@@ -60,13 +67,13 @@ tool call must use MCP.
 
 ## A good path through the repository
 
-1. Read the main [README](../README.md) and [architecture](architecture.md).
+1. Read the main [README](../README.md), [architecture as built](architecture-as-built.md) and [capability matrix](capability-status.md).
 2. Verify the accepted [M11](evidence/m11-context-aware-work-execution-results.md),
    [M14](evidence/m14-usable-agent-runtime-results.md) and
    [M15](evidence/m15-trusted-developer-agent-results.md) evidence.
 3. Read [ADR-0002](adr/0002-evidence-gated-architecture.md) and
    [ADR-0004](adr/0004-trusted-self-development-boundary.md) for design intent.
-4. Inspect `src/agent_platform/api/composition.py`,
+4. Read the [post-M15 change inventory](evidence/post-m15-engineering-changes.md), then inspect `src/agent_platform/api/composition.py`,
    `src/agent_platform/adapters/runtimes/tool_calling.py`, and
    `src/agent_platform/application/supervised_coding_publication.py` for
    current behavior.

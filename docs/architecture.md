@@ -12,6 +12,12 @@ Runtimes, model providers, tools, deployment backends and memory backends remain
 
 ## Current architecture
 
+**For the current combined source-level execution paths**, start with the
+[architecture-as-built map](architecture-as-built.md) and the
+[capability/evidence matrix](capability-status.md). The diagrams retained
+below document historical architectural boundaries as they evolved; do not
+assume every path is active in the same configuration.
+
 The diagram below describes the original DSH + MCP capability flow, **not the only
 available execution path**. The configurable API composition also supports
 `fake`, `dsh` and `tool-calling` runtimes
@@ -545,7 +551,8 @@ Traces are exported through OTLP to Tempo.
 
 ## Process boundaries
 
-Current homelab topology:
+Recorded homelab topology (historical example; current reachability and host
+configuration were not checked during the 2026-10-26 documentation audit):
 
 ```text
 192.168.10.30:8000    Agent Platform API / Model Gateway / metrics
@@ -656,6 +663,10 @@ docs/evidence/artifacts/m10-context-preparation-smoke-v0.json
 ```
 
 ## Validation since M10
+
+For post-M15 implementation details, source/test-level status and outstanding
+live evidence, see
+[`docs/evidence/post-m15-engineering-changes.md`](evidence/post-m15-engineering-changes.md).
 
 - **M11:** context-aware `/work` execution, including real DSH smokes with
   OpenRouter and a local backend; see

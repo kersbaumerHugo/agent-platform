@@ -1,6 +1,6 @@
 # ADR-0010: Supervised Coding Work V0
 
-- Status: Proposed
+- Status: Proposed (original decision record; retrospective evidence note below)
 - Date: 2026-09-18
 - Governing principle: ADR-0002 — Evidence-Gated Architecture
 - Related decisions:
@@ -682,21 +682,35 @@ self-modification of publisher policy
 automatic merge
 ```
 
-## Experiment
+## Experiment and retrospective evidence note (2026-10-26)
 
-This ADR remains **Proposed** until the experiment in:
+This ADR was initially proposed before the M12 supervised-coding experiments.
+The original experiment plan is preserved at:
 
 ```text
 docs/evidence/m12-supervised-coding-work-experiment-plan.md
 ```
 
-is completed.
+Several **individual M12 acceptance records** now exist, particularly:
 
-Expected results should be recorded in:
+- `docs/evidence/m12-3-execution-boundary-results.md`
+- `docs/evidence/m12-5-authoritative-verification-profile-results.md`
+- `docs/evidence/m12-6-verified-publication-integrity-results.md`
 
-```text
-docs/evidence/m12-supervised-coding-work-results.md
-```
+M15 and M15.6 subsequently recorded real inspected, coded, verified and
+published pull requests with human-controlled merges:
+
+- `docs/evidence/m15-trusted-developer-agent-results.md`
+
+The formerly proposed consolidated file
+`docs/evidence/m12-supervised-coding-work-results.md` is **not present**.
+The historical ADR is therefore **not silently reclassified as Accepted**
+merely from these later results: the original `Proposed` status remains until
+a formal retrospective disposition is recorded. The **implemented behavior**
+and **measured evidence** are documented separately in
+`docs/capability-status.md` and
+`docs/evidence/post-m15-engineering-changes.md`. This status-label gap is
+**documentation governance debt**, not a claim that the M15 live slice failed.
 
 ## Decision rule
 

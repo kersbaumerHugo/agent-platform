@@ -199,6 +199,27 @@ Human approval / merge
 
 No automatic merge authority is granted to the agent.
 
+## Later source-level gates (post-M15)
+
+The current coding implementation expands the historical diagram above:
+
+- Worker-side workspace hygiene, diagnostic self-verification and **one**
+  bounded self-repair attempt help produce a cleaner untrusted proposal.
+- Trusted authoritative verification checks the candidate. On verification
+  rejection the publication service may attempt up to **two** repairs, each
+  requiring a changed candidate at the same trusted base/metadata.
+- A dedicated **read-only semantic-review execution mode** examines the exact
+  mechanically verified candidate. Rejection, invalid output or workspace
+  mutation prevents publication.
+- The trusted publisher independently checks verified/publication identity;
+  GitHub CI and human merge remain separate gates.
+
+These later implementations have dedicated tests, but the historical M15/M15.6
+live smokes **predate** the final semantic-review mode. Do not treat those
+reports as proof of a new all-gates-live smoke. See
+`docs/architecture-as-built.md`, `docs/capability-status.md` and
+`docs/evidence/post-m15-engineering-changes.md` for status and limits.
+
 ## Publication authority
 
 The GitHub credential is scoped to the `agent-platform` repository.
