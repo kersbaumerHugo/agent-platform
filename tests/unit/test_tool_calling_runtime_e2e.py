@@ -269,6 +269,54 @@ class RepeatCodingIfAllowedGateway:
         )
 
 
+class BatchedTerminalGateway:
+    def __init__(self) -> None:
+        self.requests: list[ModelRequest] = []
+
+    async def generate(
+        self,
+        request: ModelRequest,
+    ) -> ModelResult:
+        self.requests.append(request)
+
+        if len(self.requests) == 1:
+            return ModelResult(
+                provider="test",
+                model="tool-model",
+                tool_calls=[
+                    ModelToolCall(
+                        id="inspect-before",
+                        name="repository_inspect",
+                        arguments=json.dumps({"targets": [TARGET]}),
+                    ),
+                    ModelToolCall(
+                        id="coding-1",
+                        name="coding_execute",
+                        arguments=json.dumps(
+                            {
+                                "goal": "Make a supervised README change.",
+                                "expected_base_revision": INDEXED_REVISION,
+                            }
+                        ),
+                    ),
+                    ModelToolCall(
+                        id="inspect-after",
+                        name="repository_inspect",
+                        arguments=json.dumps({"targets": [TARGET]}),
+                    ),
+                ],
+                finish_reason="tool_calls",
+            )
+
+        assert request.tools == []
+        return ModelResult(
+            provider="test",
+            model="tool-model",
+            output="Coding completed; remaining calls skipped.",
+            finish_reason="stop",
+        )
+
+
 class ExceedingGateway:
     def __init__(self) -> None:
         self.requests: list[ModelRequest] = []
@@ -572,6 +620,68 @@ async def test_published_coding_tool_is_invoked_exactly_once() -> None:
 
     assert coding_output["publication_outcome"] == "published"
     assert coding_output["pull_request_number"] == 999
+
+
+@pytest.mark.asyncio
+async def test_finalize_completes_batched_tool_transcript_without_further_execution() -> None:
+    repository_backend = RecordingRepositoryBackend()
+    coding_capability = RecordingCodingCapability()
+    authorization = StaticCapabilityAuthorizationPolicy(
+        grants=[
+            (PRINCIPAL, "repository.inspect"),
+            (PRINCIPAL, "coding.execute"),
+        ],
+    )
+    registry = ToolRegistry(
+        [
+            RepositoryInspectionTool(
+                RepositoryInspectionCapability(repository_backend),
+                authorization,
+            ),
+            CodingTool(coding_capability, authorization),
+        ],
+        NullObserver(),
+    )
+    gateway = BatchedTerminalGateway()
+    runtime = ToolCallingRuntime(
+        gateway=gateway,
+        registry=registry,
+        agent_id=AGENT_ID,
+        principal_id=PRINCIPAL,
+    )
+
+    result = await RunAgent(runtime=runtime, observer=NullObserver()).execute(
+        RunRequest(agent_id=AGENT_ID, input="Inspect, code, then finalize.")
+    )
+
+    assert result.status is RunStatus.SUCCEEDED
+    assert result.output == "Coding completed; remaining calls skipped."
+    assert len(repository_backend.requests) == 1
+    assert len(coding_capability.requests) == 1
+    assert len(gateway.requests) == 2
+
+    final_request = gateway.requests[-1]
+    assert final_request.max_tokens == 512
+    assert final_request.tools == []
+    assert [message.role for message in final_request.messages] == [
+        MessageRole.USER,
+        MessageRole.ASSISTANT,
+        MessageRole.TOOL,
+        MessageRole.TOOL,
+        MessageRole.TOOL,
+    ]
+    assert [message.tool_call_id for message in final_request.messages[2:]] == [
+        "inspect-before",
+        "coding-1",
+        "inspect-after",
+    ]
+
+    inspect_output = json.loads(final_request.messages[2].content or "{}")
+    coding_output = json.loads(final_request.messages[3].content or "{}")
+    skipped_output = json.loads(final_request.messages[4].content or "{}")
+    assert inspect_output["indexed_revision"] == INDEXED_REVISION
+    assert coding_output["publication_outcome"] == "published"
+    assert skipped_output == {"error": "tool_call_skipped_after_finalize"}
 
 
 @pytest.mark.asyncio

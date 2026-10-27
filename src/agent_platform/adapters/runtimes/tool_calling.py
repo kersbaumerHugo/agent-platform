@@ -107,27 +107,33 @@ class ToolCallingRuntime:
             )
 
             for tool_call in result.tool_calls:
-                tool_result = await self._invoke_tool(
-                    request,
-                    tool_call,
-                )
+                if finalize_requested:
+                    # Every tool_call_id needs a corresponding tool message,
+                    # even when an earlier tool terminated this round.
+                    # Never execute further side-effecting tools after FINALIZE.
+                    tool_output: dict[str, object] = {
+                        "error": "tool_call_skipped_after_finalize",
+                    }
+                else:
+                    tool_result = await self._invoke_tool(
+                        request,
+                        tool_call,
+                    )
+                    tool_output = tool_result.output
+                    if tool_result.continuation is ToolContinuation.FINALIZE:
+                        finalize_requested = True
 
                 messages.append(
                     ModelMessage(
                         role=MessageRole.TOOL,
                         content=json.dumps(
-                            tool_result.output,
+                            tool_output,
                             separators=(",", ":"),
                             sort_keys=True,
                         ),
                         tool_call_id=tool_call.id,
                     )
                 )
-
-                # Check for FINALIZE continuation
-                if tool_result.continuation is ToolContinuation.FINALIZE:
-                    finalize_requested = True
-                    break
 
             if finalize_requested:
                 break
